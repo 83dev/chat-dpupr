@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Bidang/Departemen dari SSO
+model Bidang {
+  id        Int      @id @default(autoincrement())
+  kode      String   @unique @db.VarChar(10)
+  nama      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users     User[]
+  chatRooms ChatRoom[]
+
+  @@map("bidang")
+}
+
+// Jabatan dari SSO
+model Jabatan {
+  id        Int      @id @default(autoincrement())
+  nama      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("jabatan")
+}
+
+// User dari SSO DPUPR - NIP sebagai unique identifier
+model User {
+  nip       String    @id @db.VarChar(20)
+  ssoId     Int       @unique @map("sso_id")
+  nama      String    @db.VarChar(100)
+  email     String    @unique @db.VarChar(100)
+  noHp      String?   @map("no_hp") @db.VarChar(20)
+  avatar    String?   @db.VarChar(255)
+  isActive  Boolean   @default(true) @map("is_active")
+  lastSeen  DateTime? @map("last_seen")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  bidangId  Int?    @map("bidang_id")
+  bidang    Bidang? @relation(fields: [bidangId], references: [id])
+
+  jabatanId Int?     @map("jabatan_id")
+  jabatan   Jabatan? @relation(fields: [jabatanId], references: [id])
+
+  messages    Message[]
+  roomMembers ChatRoomMember[]
+
+  @@map("users")
+}
+
+// Tipe ChatRoom
+enum ChatRoomType {
+  BIDANG
+  PROYEK
+  PRIVATE
+}
+
+// Chat Room
+model ChatRoom {
+  id          String       @id @default(uuid())
+  nama        String       @db.VarChar(100)
+  description String?      @db.VarChar(255)
+  type        ChatRoomType @default(BIDANG)
+  avatar      String?      @db.VarChar(255)
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Untuk room tipe BIDANG
+  bidangId Int?    @map("bidang_id")
+  bidang   Bidang? @relation(fields: [bidangId], references: [id])
+
+  // Untuk room tipe PROYEK
+  proyekKode String? @map("proyek_kode") @db.VarChar(50)
+  proyekNama String? @map("proyek_nama") @db.VarChar(200)
+
+  members  ChatRoomMember[]
+  messages Message[]
+
+  @@map("chat_rooms")
+}
+
+// Junction table untuk room members
+model ChatRoomMember {
+  id       String    @id @default(uuid())
+  role     String    @default("member") @db.VarChar(20)
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  leftAt   DateTime? @map("left_at")
+
+  roomId String   @map("room_id")
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  userNip String @map("user_nip")
+  user    User   @relation(fields: [userNip], references: [nip])
+
+  @@unique([roomId, userNip])
+  @@map("chat_room_members")
+}
+
+// Message Status
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+// Message dengan support lokasi GPS
+model Message {
+  id        String        @id @default(uuid())
+  body      String        @db.Text
+  isReport  Boolean       @default(false) @map("is_report")
+  status    MessageStatus @default(SENT)
+  isDeleted Boolean       @default(false) @map("is_deleted")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  // Lokasi GPS untuk field report (JSONB)
+  // { "lat": -6.123, "lng": 106.456, "accuracy": 10, "address": "..." }
+  locationData Json? @map("location_data") @db.JsonB
+
+  // Attachment files
+  // [{ "type": "image", "url": "...", "name": "..." }]
+  attachments Json? @db.JsonB
+
+  roomId String   @map("room_id")
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  senderNip String @map("sender_nip")
+  sender    User   @relation(fields: [senderNip], references: [nip])
+
+  // Reply to message
+  replyToId String?   @map("reply_to_id")
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies   Message[] @relation("MessageReplies")
+
+  // Read receipts
+  readBy MessageRead[]
+
+  @@index([roomId, createdAt])
+  @@map("messages")
+}
+
+// Track who has read each message
+model MessageRead {
+  id        String   @id @default(uuid())
+  readAt    DateTime @default(now()) @map("read_at")
+
+  messageId String  @map("message_id")
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userNip String @map("user_nip")
+
+  @@unique([messageId, userNip])
+  @@index([messageId])
+  @@map("message_reads")
+}
