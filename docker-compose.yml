@@ -37,6 +37,12 @@ services:
       # Add other env vars here or use .env file
       JWT_SECRET: ${JWT_SECRET}
       NODE_ENV: production
+      # SSO Configuration
+      SSO_ISSUER_URL: ${SSO_ISSUER_URL}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET}
+      SSO_REDIRECT_URI: ${SSO_REDIRECT_URI}
+      SSO_SCOPES: ${SSO_SCOPES}
     ports:
       - "3001:3001"
     depends_on:
@@ -54,7 +60,12 @@ services:
     container_name: dpupr_chat_web
     restart: always
     environment:
-      NEXT_PUBLIC_BACKEND_URL: http://localhost:3001 # Client-side accesses backend via public URL
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
+      # NextAuth & SSO Configuration
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      SSO_CLIENT_ID: ${SSO_CLIENT_ID}
+      SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET}
       # If using Nginx, this might change to https://api.chat.dpupr.gov.id
       NODE_ENV: production
     ports:
