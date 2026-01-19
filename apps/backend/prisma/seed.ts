@@ -75,39 +75,6 @@ async function main() {
     }
   }
 
-  // Create some project rooms
-  const projectRooms = [
-    { 
-      nama: 'Proyek Jalan Serang-Pandeglang',
-      proyekKode: 'PRJ-001',
-      proyekNama: 'Pembangunan Jalan Serang-Pandeglang KM 10-15'
-    },
-    { 
-      nama: 'Proyek Irigasi Ciujung',
-      proyekKode: 'PRJ-002',
-      proyekNama: 'Rehabilitasi Irigasi Ciujung'
-    },
-  ];
-
-  for (const project of projectRooms) {
-    const existing = await prisma.chatRoom.findFirst({
-      where: { proyekKode: project.proyekKode }
-    });
-
-    if (!existing) {
-      await prisma.chatRoom.create({
-        data: {
-          nama: project.nama,
-          description: project.proyekNama,
-          type: 'PROYEK',
-          proyekKode: project.proyekKode,
-          proyekNama: project.proyekNama,
-        },
-      });
-      console.log(`✅ Proyek Room: ${project.nama}`);
-    }
-  }
-
   console.log('\n✨ Seeding completed!');
 }
 

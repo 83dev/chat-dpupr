@@ -61,7 +61,7 @@ services:
     container_name: dpupr_chat_web
     restart: always
     environment:
-      NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
+      NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL}
       # NextAuth & SSO Configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
