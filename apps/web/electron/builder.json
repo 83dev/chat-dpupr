@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.dpupr.chat",
+  "productName": "Chat DPUPR Banten",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "out/**/*",
+    "electron/**/*.js",
+    "public/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/icon-512.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "public/icon-512.png",
+    "uninstallerIcon": "public/icon-512.png",
+    "installerHeaderIcon": "public/icon-512.png"
+  },
+  "mac": {
+    "target": ["dmg"],
+    "icon": "public/icon-512.png"
+  },
+  "linux": {
+    "target": ["AppImage"],
+    "icon": "public/icon-512.png"
+  }
+}
