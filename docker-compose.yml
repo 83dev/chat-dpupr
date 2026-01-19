@@ -31,8 +31,7 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-dpupr_chat}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
       PORT: 3001
       # Add other env vars here or use .env file
       JWT_SECRET: ${JWT_SECRET}
