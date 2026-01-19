@@ -36,6 +36,7 @@ services:
       PORT: 3001
       # Add other env vars here or use .env file
       JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
       NODE_ENV: production
       # SSO Configuration
       SSO_ISSUER_URL: ${SSO_ISSUER_URL}
