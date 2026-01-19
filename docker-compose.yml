@@ -56,7 +56,7 @@ services:
       # If using Nginx, this might change to https://api.chat.dpupr.gov.id
       NODE_ENV: production
     ports:
-      - "3000:3000"
+      - "3002:3000"
     depends_on:
       - backend
     networks:
