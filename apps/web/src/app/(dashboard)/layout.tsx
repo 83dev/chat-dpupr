@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useChatStore } from '@/stores';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 import { fetchAPI } from '@/lib/utils';
-import { requestNotificationPermission, showMessageNotification, playNotificationSound } from '@/lib/notifications';
+import { requestNotificationPermission, showMessageNotification, playNotificationSound, updateBadgeCount } from '@/lib/notifications';
 import type { ApiResponse, ChatRoom, Message } from '@/lib/types';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
@@ -72,7 +72,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       // Show notification if message is not from current user
       if (message.senderNip !== user?.nip) {
         incrementRoomUnreadCount(message.roomId);
+        
+        // Update badge count for Electron desktop app
         const currentRooms = useChatStore.getState().rooms;
+        const totalUnread = currentRooms.reduce((sum, room) => sum + (room.unreadCount || 0), 0) + 1;
+        updateBadgeCount(totalUnread);
+        
         const room = currentRooms.find(r => r.id === message.roomId);
         const roomName = room?.nama || 'Chat';
         
@@ -110,6 +115,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     socket.on('messages:read', ({ roomId, messageIds }) => {
       const { updateMessagesStatus } = useChatStore.getState();
       updateMessagesStatus(roomId, messageIds, 'READ');
+    });
+
+    // Listen for deleted messages
+    socket.on('message:deleted', ({ roomId, messageId }) => {
+      const { removeMessage } = useChatStore.getState();
+      removeMessage(roomId, messageId);
     });
 
     return () => {

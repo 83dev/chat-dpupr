@@ -39,6 +39,7 @@ interface ChatState {
   addMessage: (roomId: string, message: Message) => void;
   setMessages: (roomId: string, messages: Message[]) => void;
   prependMessages: (roomId: string, messages: Message[]) => void;
+  removeMessage: (roomId: string, messageId: string) => void;
   updateMessagesStatus: (roomId: string, messageIds: string[], status: 'SENT' | 'DELIVERED' | 'READ') => void;
   clearRoomUnreadCount: (roomId: string) => void;
   incrementRoomUnreadCount: (roomId: string) => void;
@@ -86,6 +87,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       messages: {
         ...get().messages,
         [roomId]: [...messages, ...current],
+      },
+    });
+  },
+
+  removeMessage: (roomId, messageId) => {
+    const current = get().messages[roomId] || [];
+    set({
+      messages: {
+        ...get().messages,
+        [roomId]: current.filter(msg => msg.id !== messageId),
       },
     });
   },

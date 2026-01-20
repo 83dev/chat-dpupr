@@ -7,7 +7,7 @@ import type { Message, SendMessagePayload, MessageResponse, UserBasic } from './
 interface ServerToClientEvents {
   'message:new': (message: Message) => void;
   'message:updated': (message: Message) => void;
-  'message:deleted': (messageId: string) => void;
+  'message:deleted': (data: { roomId: string; messageId: string }) => void;
   'messages:read': (data: { roomId: string; messageIds: string[]; readBy: string }) => void;
   'users:online': (nips: string[]) => void;
   'user:online': (nip: string) => void;
@@ -22,6 +22,7 @@ interface ClientToServerEvents {
   'room:join': (roomId: string) => void;
   'room:leave': (roomId: string) => void;
   'message:send': (data: SendMessagePayload, callback: (response: MessageResponse) => void) => void;
+  'message:delete': (data: { roomId: string; messageId: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'messages:mark-read': (data: { roomId: string; messageIds: string[] }) => void;
   'typing:start': (roomId: string) => void;
   'typing:stop': (roomId: string) => void;
@@ -100,6 +101,14 @@ export function markMessagesRead(roomId: string, messageIds: string[]): void {
   if (messageIds.length > 0) {
     socket?.emit('messages:mark-read', { roomId, messageIds });
   }
+}
+
+export function deleteMessage(
+  roomId: string,
+  messageId: string,
+  callback: (response: { success: boolean; error?: string }) => void
+): void {
+  socket?.emit('message:delete', { roomId, messageId }, callback);
 }
 
 export default socket;

@@ -68,7 +68,7 @@ export interface Attachment {
 export interface ServerToClientEvents {
   'message:new': (message: MessageWithSender) => void;
   'message:updated': (message: MessageWithSender) => void;
-  'message:deleted': (messageId: string) => void;
+  'message:deleted': (data: { roomId: string; messageId: string }) => void;
   'messages:read': (data: { roomId: string; messageIds: string[]; readBy: string }) => void;
   'users:online': (nips: string[]) => void;
   'user:online': (nip: string) => void;
@@ -83,6 +83,7 @@ export interface ClientToServerEvents {
   'room:join': (roomId: string) => void;
   'room:leave': (roomId: string) => void;
   'message:send': (data: SendMessagePayload, callback: (response: MessageResponse) => void) => void;
+  'message:delete': (data: { roomId: string; messageId: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
   'messages:mark-read': (data: { roomId: string; messageIds: string[] }) => void;
   'typing:start': (roomId: string) => void;
   'typing:stop': (roomId: string) => void;

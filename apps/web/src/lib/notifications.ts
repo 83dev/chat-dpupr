@@ -1,14 +1,24 @@
 'use client';
 
 import type { Message } from '@/lib/types';
+import { isElectron, showNotification as showElectronNotification, setBadgeCount } from '@/lib/electron';
 
 // Check if browser supports notifications
 export function supportsNotifications(): boolean {
+  // Electron always supports notifications
+  if (isElectron()) {
+    return true;
+  }
   return typeof window !== 'undefined' && 'Notification' in window;
 }
 
 // Request notification permission
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  // Electron always has permission
+  if (isElectron()) {
+    return 'granted';
+  }
+
   if (!supportsNotifications()) {
     return 'denied';
   }
@@ -26,6 +36,11 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 
 // Get current permission status
 export function getNotificationPermission(): NotificationPermission | 'unsupported' {
+  // Electron always has permission
+  if (isElectron()) {
+    return 'granted';
+  }
+
   if (!supportsNotifications()) {
     return 'unsupported';
   }
@@ -40,12 +55,16 @@ export function showMessageNotification(
     onClick?: () => void;
   }
 ): void {
-  if (!supportsNotifications() || Notification.permission !== 'granted') {
+  const hasPermission = isElectron() || 
+    (supportsNotifications() && Notification.permission === 'granted');
+  
+  if (!hasPermission) {
     return;
   }
 
-  // Don't show notification if document is visible/focused
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+  // Don't show notification if document is visible/focused (browser only)
+  // For Electron, always show notification even when focused
+  if (!isElectron() && typeof document !== 'undefined' && document.visibilityState === 'visible') {
     return;
   }
 
@@ -55,23 +74,33 @@ export function showMessageNotification(
       ? message.body.substring(0, 100) + '...' 
       : message.body;
 
-  const notification = new Notification(
-    `${message.sender.nama} - ${roomName}`,
-    {
-      body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+  const title = `${message.sender.nama} - ${roomName}`;
+
+  // Use Electron native notifications if available
+  if (isElectron()) {
+    showElectronNotification(title, body, {
       tag: `message-${message.id}`,
-      requireInteraction: false,
-      silent: false,
-    }
-  );
+    });
+    
+    // The click handler is managed by Electron's main process
+    // It will focus the window automatically
+    return;
+  }
+
+  // Fallback to browser notifications
+  const notification = new Notification(title, {
+    body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `message-${message.id}`,
+    requireInteraction: false,
+    silent: false,
+  });
 
   notification.onclick = () => {
     // Focus the window first
     window.focus();
     notification.close();
-    // Use location.assign for navigation (works better than href)
     if (options?.onClick) {
       options.onClick();
     }
@@ -81,6 +110,13 @@ export function showMessageNotification(
   setTimeout(() => {
     notification.close();
   }, 5000);
+}
+
+// Update badge count (Electron only)
+export function updateBadgeCount(count: number): void {
+  if (isElectron()) {
+    setBadgeCount(count);
+  }
 }
 
 // Play notification sound

@@ -228,6 +228,39 @@ export function setupChatHandlers(io: SocketIOServer<ClientToServerEvents, Serve
         console.error('Mark read error:', error);
       }
     });
+
+    // Handle deleting a message
+    socket.on('message:delete', async ({ roomId, messageId }, callback) => {
+      try {
+        // Verify the message exists and belongs to the user
+        const message = await prisma.message.findFirst({
+          where: {
+            id: messageId,
+            roomId,
+            senderNip: user.nip,
+            isDeleted: false,
+          },
+        });
+
+        if (!message) {
+          return callback({ success: false, error: 'Message not found or access denied' });
+        }
+
+        // Soft delete the message
+        await prisma.message.update({
+          where: { id: messageId },
+          data: { isDeleted: true },
+        });
+
+        // Broadcast deletion to the room
+        io.to(`room:${roomId}`).emit('message:deleted', { roomId, messageId });
+
+        callback({ success: true });
+      } catch (error) {
+        console.error('Delete message error:', error);
+        callback({ success: false, error: 'Failed to delete message' });
+      }
+    });
     
     // Handle disconnect
     socket.on('disconnect', async () => {

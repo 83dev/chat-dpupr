@@ -5,11 +5,22 @@ directories:
 files:
   - dist/**/*
   - package.json
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - "**/*"
 win:
-  target: nsis
-  # icon: ../web/public/icon-512.png
+  target: 
+    - target: nsis
+      arch: x64
+    - target: dir
+      arch: x64
+  icon: resources/icon.png
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  shortcutName: Chat DPUPR
+  runAfterFinish: true

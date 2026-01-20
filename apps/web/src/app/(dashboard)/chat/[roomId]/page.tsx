@@ -4,14 +4,14 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useChatStore, useAuthStore } from '@/stores';
 import { fetchAPI, formatMessageTime, getInitials } from '@/lib/utils';
-import { joinRoom, leaveRoom, sendMessage, startTyping, stopTyping, markMessagesRead } from '@/lib/socket';
+import { joinRoom, leaveRoom, sendMessage, startTyping, stopTyping, markMessagesRead, deleteMessage } from '@/lib/socket';
 import type { ApiResponse, Message, PaginatedResponse, Attachment, ChatRoom } from '@/lib/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, MapPin, ArrowLeft, MoreVertical, FileText, Download, Check, CheckCheck } from 'lucide-react';
+import { Send, MapPin, ArrowLeft, MoreVertical, FileText, Download, Check, CheckCheck, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { FileAttachment } from '@/components/chat/FileAttachment';
 import {
@@ -260,10 +260,19 @@ export default function ChatRoomPage() {
           {roomMessages.map((msg) => {
             const isOwn = msg.senderNip === user?.nip;
             
+            const handleDeleteMessage = () => {
+              if (!confirm('Hapus pesan ini?')) return;
+              deleteMessage(roomId, msg.id, (response) => {
+                if (!response.success) {
+                  console.error('Delete failed:', response.error);
+                }
+              });
+            };
+            
             return (
               <div 
                 key={msg.id} 
-                className={`flex gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-2 group ${isOwn ? 'justify-end' : 'justify-start'}`}
               >
                 {!isOwn && (
                   <Avatar className="h-8 w-8 shrink-0">
@@ -347,6 +356,30 @@ export default function ChatRoomPage() {
                     )}
                   </p>
                 </div>
+                
+                {/* Delete button for own messages */}
+                {isOwn && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={handleDeleteMessage}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Hapus Pesan
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             );
           })}
