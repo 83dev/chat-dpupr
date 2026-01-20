@@ -88,35 +88,16 @@ export default function RoomListScreen() {
     <>
       <Stack.Screen
         options={{
+          title: 'Chat DPUPR',
+          headerLargeTitle: false,
           headerRight: () => (
-            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-              <LogOut size={22} color="#ef4444" />
+            <TouchableOpacity onPress={signOut} style={{ marginRight: 16 }}>
+              <LogOut size={24} color="#ef4444" />
             </TouchableOpacity>
           ),
         }}
       />
       <View style={styles.container}>
-        {rooms.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Belum ada chat</Text>
-            <Text style={styles.emptySubtext}>
-              Tarik ke bawah untuk refresh
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={rooms}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <RoomListItem
-                room={item}
-                isOnline={isUserOnline(item)}
-                onPress={() => handleRoomPress(item.id)}
-              />
-            )}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
                 onRefresh={onRefresh}
                 colors={['#3b82f6']}
                 tintColor="#3b82f6"

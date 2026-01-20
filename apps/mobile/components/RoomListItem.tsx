@@ -50,32 +50,45 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
       ? lastMessagePreview.substring(0, 40) + '...'
       : lastMessagePreview;
 
+  // Determine avatar color based on room type
+  const getAvatarColor = () => {
+    if (room.type === 'BIDANG') return '#8b5cf6'; // Violet for Bidang
+    if (room.type === 'PROYEK') return '#10b981'; // Emerald for Proyek
+    return '#3b82f6'; // Blue for Private
+  };
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.avatarContainer}>
-        <View style={[styles.avatar, room.type === 'BIDANG' && styles.avatarBidang]}>
+        <View style={[styles.avatar, { backgroundColor: getAvatarColor() }]}>
           <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
         </View>
         {isOnline && <View style={styles.onlineIndicator} />}
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.header}>
+      <View style={styles.contentContainer}>
+        <View style={styles.topRow}>
           <Text style={styles.name} numberOfLines={1}>
             {displayName}
           </Text>
           {room.lastMessage && (
-            <Text style={styles.time}>{formatTime(room.lastMessage.createdAt)}</Text>
+            <Text style={[styles.time, (room.unreadCount || 0) > 0 && styles.timeUnread]}>
+              {formatTime(room.lastMessage.createdAt)}
+            </Text>
           )}
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.message} numberOfLines={1}>
-            {room.lastMessage?.sender?.nama 
+        <View style={styles.bottomRow}>
+          <Text 
+            style={[styles.message, (room.unreadCount || 0) > 0 && styles.messageUnread]} 
+            numberOfLines={1}
+          >
+            {room.lastMessage?.sender?.nama && room.type !== 'PRIVATE'
               ? `${room.lastMessage.sender.nama}: ${truncatedMessage}`
               : truncatedMessage
             }
           </Text>
+          
           {(room.unreadCount || 0) > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -92,76 +105,84 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    alignItems: 'center',
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: 16,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#3b82f6',
+    width: 56, // Larger avatar
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarBidang: {
-    backgroundColor: '#8b5cf6',
-  },
   avatarText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#22c55e',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#fff',
   },
-  content: {
+  contentContainer: {
     flex: 1,
     justifyContent: 'center',
+    gap: 2,
   },
-  header: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   name: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#0f172a',
     flex: 1,
     marginRight: 8,
+    letterSpacing: -0.3,
   },
   time: {
     fontSize: 12,
     color: '#64748b',
+    fontWeight: '400',
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  timeUnread: {
+    color: '#22c55e', // WhatsApp green for unread time
+    fontWeight: '600',
   },
   message: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#64748b',
     flex: 1,
     marginRight: 8,
+    fontWeight: '400',
+  },
+  messageUnread: {
+    color: '#334155',
+    fontWeight: '500',
   },
   badge: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#25D366', // WhatsApp green
     borderRadius: 12,
     minWidth: 24,
     height: 24,
@@ -172,6 +193,6 @@ const styles = StyleSheet.create({
   badgeText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
