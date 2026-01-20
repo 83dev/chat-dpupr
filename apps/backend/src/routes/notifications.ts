@@ -16,10 +16,8 @@ router.post('/register', authMiddleware, async (req, res) => {
     const { pushToken } = registerTokenSchema.parse(req.body);
     const userNip = req.user!.nip;
 
-    await prisma.user.update({
-      where: { nip: userNip },
-      data: { pushToken },
-    });
+    // Use raw query to avoid type issues with new field
+    await prisma.$executeRaw`UPDATE users SET push_token = ${pushToken} WHERE nip = ${userNip}`;
 
     res.json({
       success: true,
@@ -39,10 +37,8 @@ router.delete('/unregister', authMiddleware, async (req, res) => {
   try {
     const userNip = req.user!.nip;
 
-    await prisma.user.update({
-      where: { nip: userNip },
-      data: { pushToken: null },
-    });
+    // Use raw query to avoid type issues with new field
+    await prisma.$executeRaw`UPDATE users SET push_token = NULL WHERE nip = ${userNip}`;
 
     res.json({
       success: true,

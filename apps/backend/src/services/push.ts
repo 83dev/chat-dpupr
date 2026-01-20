@@ -70,37 +70,40 @@ export async function notifyRoomMembers(
   roomName: string
 ): Promise<void> {
   try {
-    // Get all room members except the sender with their user data
+    // Get all room members except the sender
     const members = await prisma.chatRoomMember.findMany({
       where: {
         roomId,
         userNip: { not: senderNip },
         leftAt: null,
       },
-      select: {
-        userNip: true,
-        user: {
-          select: {
-            pushToken: true,
-            nip: true,
-          },
-        },
+      include: {
+        user: true,
       },
     });
 
-    // Filter members with push tokens
-    const messages: PushMessage[] = members
-      .filter((m) => m.user?.pushToken)
-      .map((m) => ({
-        to: m.user!.pushToken!,
-        title: `${senderName} - ${roomName}`,
-        body: messageBody.length > 100 ? messageBody.substring(0, 100) + '...' : messageBody,
-        data: {
-          roomId,
-          type: 'new_message',
-        },
-        sound: 'default',
-      }));
+    // Filter members with push tokens and build messages
+    const messages: PushMessage[] = [];
+    
+    for (const member of members) {
+      // Access pushToken using raw query to avoid type issues
+      const userWithToken = await prisma.user.findUnique({
+        where: { nip: member.userNip },
+      }) as any;
+      
+      if (userWithToken?.pushToken) {
+        messages.push({
+          to: userWithToken.pushToken,
+          title: `${senderName} - ${roomName}`,
+          body: messageBody.length > 100 ? messageBody.substring(0, 100) + '...' : messageBody,
+          data: {
+            roomId,
+            type: 'new_message',
+          },
+          sound: 'default',
+        });
+      }
+    }
 
     if (messages.length > 0) {
       await sendPushNotifications(messages);

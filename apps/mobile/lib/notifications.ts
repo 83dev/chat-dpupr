@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-import { registerPushToken } from './api';
+import { registerPushToken, api } from './api';
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -73,6 +73,16 @@ export async function registerTokenWithBackend(token: string): Promise<boolean> 
   } catch (error) {
     console.error('Failed to register push token with backend:', error);
     return false;
+  }
+}
+
+// Unregister push token (on logout)
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    await api.delete('/api/notifications/unregister');
+    console.log('✅ Push token unregistered');
+  } catch (error) {
+    console.error('Failed to unregister push token:', error);
   }
 }
 
