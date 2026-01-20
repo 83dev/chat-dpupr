@@ -23,8 +23,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1e40af"
       },
-      "edgeToEdgeEnabled": true,
-      "googleServicesFile": "./google-services.json"
+      "edgeToEdgeEnabled": true
     },
     "plugins": [
       "expo-router",
@@ -33,14 +32,13 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#1e40af",
-          "sounds": ["./assets/notification.wav"]
+          "color": "#1e40af"
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "2eea0e42-1010-476d-a191-77a81b8bf089"
       },
       "backendUrl": "https://api-chat.dpupr.com"
     },
