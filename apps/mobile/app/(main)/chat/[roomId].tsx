@@ -101,10 +101,19 @@ export default function ChatRoomScreen() {
       if (response.success && response.data) {
         const { messages: newMessages, nextCursor } = response.data;
 
-        if (initial) {
-          setMessages(roomId!, newMessages.reverse());
+        // Safety check: ensure newMessages is an array
+        if (Array.isArray(newMessages)) {
+          if (initial) {
+            setMessages(roomId!, newMessages.reverse());
+          } else {
+            prependMessages(roomId!, newMessages.reverse());
+          }
         } else {
-          prependMessages(roomId!, newMessages.reverse());
+          console.warn('Messages is not an array:', newMessages);
+          // Set empty array if messages is not valid
+          if (initial) {
+            setMessages(roomId!, []);
+          }
         }
 
         setCursor(nextCursor);
@@ -112,6 +121,10 @@ export default function ChatRoomScreen() {
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+      // Set empty array on error for initial load
+      if (initial) {
+        setMessages(roomId!, []);
+      }
     } finally {
       setIsLoading(false);
     }
