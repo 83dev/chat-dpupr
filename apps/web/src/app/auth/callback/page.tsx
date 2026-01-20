@@ -22,7 +22,7 @@ function CallbackContent() {
         .then((response) => {
           if (response.success && response.data) {
             setAuth(token, response.data);
-            router.replace('/');
+            router.replace('/dashboard');
           } else {
             throw new Error('Failed to get user profile');
           }
