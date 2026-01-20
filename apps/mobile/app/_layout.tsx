@@ -5,14 +5,12 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SystemUI from 'expo-system-ui';
 import { useAuthStore, useChatStore } from '../stores';
-import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
+import { connectSocket, disconnectSocket } from '../lib/socket';
 import { fetchRooms } from '../lib/api';
 import {
   registerForPushNotificationsAsync,
   registerTokenWithBackend,
-  addNotificationReceivedListener,
   addNotificationResponseListener,
-  setBadgeCount,
 } from '../lib/notifications';
 import type { Message } from '../lib/types';
 
@@ -57,7 +55,6 @@ function useSocketConnection() {
     incrementRoomUnreadCount,
     updateMessagesStatus,
     removeMessage,
-    getTotalUnreadCount,
   } = useChatStore();
   const router = useRouter();
 
@@ -87,8 +84,6 @@ function useSocketConnection() {
 
         if (message.senderNip !== user?.nip) {
           incrementRoomUnreadCount(message.roomId);
-          const totalUnread = getTotalUnreadCount() + 1;
-          setBadgeCount(totalUnread);
         }
       });
 
@@ -113,12 +108,20 @@ function useSocketConnection() {
       });
     });
 
-    // Setup push notifications
-    registerForPushNotificationsAsync().then((token) => {
-      if (token) {
-        registerTokenWithBackend(token);
-      }
-    });
+    // Setup push notifications (only works on development builds, not Expo Go)
+    registerForPushNotificationsAsync()
+      .then((token) => {
+        if (token) {
+          registerTokenWithBackend(token).catch((err) => {
+            console.log('Push token registration failed (expected in Expo Go):', err);
+          });
+        } else {
+          console.log('Push notifications not available (use development build for full functionality)');
+        }
+      })
+      .catch((err) => {
+        console.log('Push notifications setup failed (expected in Expo Go):', err);
+      });
 
     return () => {
       disconnectSocket();
@@ -127,14 +130,19 @@ function useSocketConnection() {
 
   // Handle notification response (when user taps notification)
   useEffect(() => {
-    const subscription = addNotificationResponseListener((response) => {
-      const data = response.notification.request.content.data;
-      if (data?.roomId) {
-        router.push(`/(main)/chat/${data.roomId}`);
-      }
-    });
+    try {
+      const subscription = addNotificationResponseListener((response) => {
+        const data = response.notification.request.content.data;
+        if (data?.roomId) {
+          router.push(`/(main)/chat/${data.roomId}`);
+        }
+      });
 
-    return () => subscription.remove();
+      return () => subscription.remove();
+    } catch (err) {
+      // Notification listeners not available in Expo Go
+      console.log('Notification listeners not available in Expo Go');
+    }
   }, []);
 }
 
