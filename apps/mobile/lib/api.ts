@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 
 // Get backend URL from app config or environment
-const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || 'http://192.168.1.100:3001';
+const BACKEND_URL = Constants.expoConfig?.extra?.backendUrl || 'https://api-chat.dpupr.com';
 
 // Create axios instance
 const api = axios.create({

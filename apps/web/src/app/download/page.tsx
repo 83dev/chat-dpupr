@@ -6,8 +6,8 @@ import { ArrowLeft, Smartphone, Monitor, Download, Apple, ExternalLink } from 'l
 
 // Download URLs - update these when new versions are released
 const DOWNLOAD_URLS = {
-  android: 'https://expo.dev/artifacts/eas/uVL7v2tvGGvJZBPt3XuZCu.apk',
-  desktop: 'https://github.com/83dev/chat-dpupr/releases/download/v1.0.0/Chat-DPUPR-Setup-1.0.0.exe',
+  android: 'https://expo.dev/artifacts/eas/DkbXCUCfEYBrv296ZidHt.apk',
+  desktop: 'https://github.com/83dev/chat-dpupr/releases/download/v1.0.0/Chat.DPUPR.Setup.1.0.0.exe',
   ios: null, // Coming soon
 };
 
