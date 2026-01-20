@@ -32,6 +32,7 @@ export default function ChatRoomScreen() {
     messages,
     setMessages,
     prependMessages,
+    appendMessages, // We need to add this to store if not exists, or just use correct setter
     setActiveRoom,
     clearRoomUnreadCount,
     typingUsers,
@@ -44,7 +45,20 @@ export default function ChatRoomScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
-  const roomMessages = messages[roomId!] || [];
+  // Messages for this room
+  // We want them ordered Newest -> Oldest for Inverted FlatList
+  // The store usually keeps them Oldest -> Newest (ASC).
+  // Let's reverse them for display if the store is ASC.
+  // Actually, let's check how we store them. 
+  // Previous code: setMessages(roomId, reversed) -> so store was ASC.
+  // New approach: We want store to be DESC or valid for inverted.
+  // Let's just reverse the slice from the store for rendering to be safe and easy.
+  const rawMessages = messages[roomId!] || [];
+  // Verify order:
+  // If stored ASC (oldest at 0), then for inverted list (newest at bottom visually, 0 index logic),
+  // we need the array to be [Newest, ..., Oldest].
+  // So we reverse the ASC array.
+  const displayMessages = [...rawMessages].reverse();
 
   useFocusEffect(
     useCallback(() => {
@@ -71,8 +85,8 @@ export default function ChatRoomScreen() {
 
   // Mark messages as read when they are displayed
   useEffect(() => {
-    if (roomMessages.length > 0 && user) {
-      const unreadMessageIds = roomMessages
+    if (rawMessages.length > 0 && user) {
+      const unreadMessageIds = rawMessages
         .filter((m) => m.senderNip !== user.nip && m.status !== 'READ')
         .map((m) => m.id);
 
@@ -80,7 +94,7 @@ export default function ChatRoomScreen() {
         markMessagesRead(roomId!, unreadMessageIds);
       }
     }
-  }, [roomMessages, user, roomId]);
+  }, [rawMessages, user, roomId]);
 
   const loadRoomDetails = async () => {
     try {
@@ -107,7 +121,7 @@ export default function ChatRoomScreen() {
 
   const loadMessages = async (initial = false) => {
     if (!initial && !hasMore) return;
-    if (!initial && isLoading) return; // Prevent multiple simultaneous loads
+    if (!initial && isLoading) return; 
 
     try {
       setIsLoading(true);
@@ -115,30 +129,33 @@ export default function ChatRoomScreen() {
       
       if (response.success && response.data) {
         // Backend returns: { success, data: Message[], pagination: {...} }
-        const newMessages = response.data;
+        // Backend Data order: DESC (Newest first) [MsgN, MsgN-1, ...]
+        const newMessages = response.data; // DESC
         const paginationInfo = (response as any).pagination;
 
-        // Safety check: ensure newMessages is an array
         if (Array.isArray(newMessages) && newMessages.length > 0) {
-          // Backend already returns messages in DESC order (newest first)
-          // We need to reverse to show oldest first (bottom to top)
-          const reversedMessages = [...newMessages].reverse();
+          // If we want to store ASC (Standard logic often implies ASC for appending)
+          // We get DESC.
+          // reversedMessages = ASC [Oldest, ... Newest]
+          const ascMessages = [...newMessages].reverse();
           
           if (initial) {
-            setMessages(roomId!, reversedMessages);
+            setMessages(roomId!, ascMessages);
           } else {
-            // For pagination, prepend older messages
-            prependMessages(roomId!, reversedMessages);
+            // Prepend older messages (which are logically 'before' the current oldest)
+            // Store has: [Old1, Old2, New1]
+            // We fetched: [Oldest1, Oldest2] (DESC from backend) -> reversed to [Oldest2, Oldest1]
+            // We want [Oldest2, Oldest1, Old1, Old2, New1]
+            prependMessages(roomId!, ascMessages);
           }
           
-          // Use pagination.hasMore to determine if there are more messages
           setHasMore(paginationInfo?.hasMore || false);
           
-          // Set cursor to last message's createdAt for next page
-          const oldestMessage = newMessages[newMessages.length - 1];
+          // Cursor for next page (older messages)
+          // Backend is cursor-based on DESC list. The last item in newMessages (DESC) is the oldest.
+          const oldestMessage = newMessages[newMessages.length - 1]; // Last item in DESC array
           setCursor(oldestMessage.createdAt);
         } else {
-          // No messages or invalid data
           if (initial) {
             setMessages(roomId!, []);
           }
@@ -149,7 +166,6 @@ export default function ChatRoomScreen() {
       }
     } catch (error) {
       console.error('Error loading messages:', error);
-      // Set empty array on error for initial load
       if (initial) {
         setMessages(roomId!, []);
       }
@@ -200,17 +216,33 @@ export default function ChatRoomScreen() {
         : `${typingIndicator.length} orang sedang mengetik...`
       : null;
 
-  const renderMessage = ({ item }: { item: Message }) => (
-    <ChatBubble message={item} isOwn={item.senderNip === user?.nip} />
-  );
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    // Check if next message (visually below, so logically newer? No, Inverted list)
+    // Inverted List: Index 0 is bottom (newest). Index 1 is older.
+    // We render from bottom up.
+    // displayMessages: [Newest(0), Older(1), Oldest(N)]
+    
+    // Grouping logic:
+    // Show name if:
+    // 1. Message isn't own
+    // 2. AND (It's the oldest message OR previous message (index+1) is different sender or too much gap)
+    
+    const prevMessage = displayMessages[index + 1]; // Older message
+    const nextMessage = displayMessages[index - 1]; // Newer message
+    
+    const isFirstInSequence = !prevMessage || prevMessage.senderNip !== item.senderNip;
+    const isLastInSequence = !nextMessage || nextMessage.senderNip !== item.senderNip;
 
-  if (isLoading && roomMessages.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+      <View style={{ marginBottom: isLastInSequence ? 8 : 2 }}>
+        <ChatBubble 
+          message={item} 
+          isOwn={item.senderNip === user?.nip} 
+          showSenderName={isFirstInSequence}
+        />
       </View>
     );
-  }
+  };
 
   return (
     <>
@@ -218,27 +250,34 @@ export default function ChatRoomScreen() {
         options={{
           title: displayName,
           headerTitleStyle: { fontWeight: '600', fontSize: 16 },
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: '#f0f2f5' },
         }}
       />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+      <View style={styles.container}>
         <FlatList
           ref={flatListRef}
-          data={roomMessages}
+          data={displayMessages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          inverted={false}
+          inverted={true}
           contentContainerStyle={styles.messageList}
-          onStartReached={handleLoadMore}
-          onStartReachedThreshold={0.5}
+          onEndReached={handleLoadMore} // Inverted: onEndReached is top (oldest)
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={ // Inverted: Footer is at the TOP (loading older messages)
+            isLoading && hasMore ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color="#3b82f6" />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Belum ada pesan</Text>
-              <Text style={styles.emptySubtext}>Kirim pesan pertama!</Text>
-            </View>
+            !isLoading ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Belum ada pesan</Text>
+                <Text style={styles.emptySubtext}>Kirim pesan pertama!</Text>
+              </View>
+            ) : null
           }
         />
 
@@ -254,7 +293,7 @@ export default function ChatRoomScreen() {
           onStopTyping={handleStopTyping}
           isSending={isSending}
         />
-      </KeyboardAvoidingView>
+      </View>
     </>
   );
 }
@@ -262,23 +301,26 @@ export default function ChatRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#efeae2', // WhatsApp-like background color (beige/off-white)
+    backgroundColor: '#efeae2', // WhatsApp-like background
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#efeae2',
   },
   messageList: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  loadingMore: {
+    paddingVertical: 12,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
+    transform: [{ scaleY: -1 }], // Counteract inverted FlatList if empty works weirdly, but usually fine
   },
   emptyText: {
     fontSize: 16,
@@ -292,12 +334,21 @@ const styles = StyleSheet.create({
   },
   typingContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
+    paddingVertical: 4,
+    backgroundColor: 'transparent',
+    position: 'absolute',
+    bottom: 70, // Above input
+    left: 0,
+    zIndex: 10,
   },
   typingText: {
     fontSize: 12,
     color: '#64748b',
     fontStyle: 'italic',
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
 });

@@ -7,9 +7,10 @@ import type { Message } from '../lib/types';
 interface ChatBubbleProps {
   message: Message;
   isOwn: boolean;
+  showSenderName?: boolean;
 }
 
-export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
+export function ChatBubble({ message, isOwn, showSenderName = true }: ChatBubbleProps) {
   const renderStatus = () => {
     if (!isOwn) return null;
 
@@ -32,7 +33,7 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
   return (
     <View style={[styles.container, isOwn ? styles.ownContainer : styles.otherContainer]}>
       {/* Sender Name for other users in group chats */}
-      {!isOwn && message.sender && (
+      {!isOwn && message.sender && showSenderName && (
         <Text style={styles.senderName} numberOfLines={1}>
           {message.sender.nama}
         </Text>
