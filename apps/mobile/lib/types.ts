@@ -25,6 +25,7 @@ export interface ChatRoom {
   nama: string;
   deskripsi?: string;
   jenis: 'BIDANG' | 'PERSONAL' | 'GROUP';
+  type: 'BIDANG' | 'PROYEK' | 'PRIVATE'; // Backend uses 'type'
   bidangId?: string;
   createdAt: string;
   updatedAt: string;
