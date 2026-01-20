@@ -95,8 +95,10 @@ export default function ChatRoomScreen() {
 
   const loadMessages = async (initial = false) => {
     if (!initial && !hasMore) return;
+    if (!initial && isLoading) return; // Prevent multiple simultaneous loads
 
     try {
+      setIsLoading(true);
       const response = await fetchRoomMessages(roomId!, initial ? undefined : cursor || undefined);
       
       if (response.success && response.data) {
@@ -105,28 +107,33 @@ export default function ChatRoomScreen() {
         const paginationInfo = (response as any).pagination;
 
         // Safety check: ensure newMessages is an array
-        if (Array.isArray(newMessages)) {
+        if (Array.isArray(newMessages) && newMessages.length > 0) {
+          // Backend already returns messages in DESC order (newest first)
+          // We need to reverse to show oldest first (bottom to top)
+          const reversedMessages = [...newMessages].reverse();
+          
           if (initial) {
-            setMessages(roomId!, newMessages.reverse());
+            setMessages(roomId!, reversedMessages);
           } else {
-            prependMessages(roomId!, newMessages.reverse());
+            // For pagination, prepend older messages
+            prependMessages(roomId!, reversedMessages);
           }
           
           // Use pagination.hasMore to determine if there are more messages
           setHasMore(paginationInfo?.hasMore || false);
           
           // Set cursor to last message's createdAt for next page
-          if (newMessages.length > 0) {
-            const oldestMessage = newMessages[newMessages.length - 1];
-            setCursor(oldestMessage.createdAt);
-          }
+          const oldestMessage = newMessages[newMessages.length - 1];
+          setCursor(oldestMessage.createdAt);
         } else {
-          console.warn('Messages is not an array:', newMessages);
-          // Set empty array if messages is not valid
+          // No messages or invalid data
           if (initial) {
             setMessages(roomId!, []);
           }
+          setHasMore(false);
         }
+      } else {
+        setHasMore(false);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -134,6 +141,7 @@ export default function ChatRoomScreen() {
       if (initial) {
         setMessages(roomId!, []);
       }
+      setHasMore(false);
     } finally {
       setIsLoading(false);
     }
