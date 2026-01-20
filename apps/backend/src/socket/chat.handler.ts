@@ -140,7 +140,7 @@ export function setupChatHandlers(io: SocketIOServer<ClientToServerEvents, Serve
         // Create message
         const message = await prisma.message.create({
           data: {
-            body: body.trim(),
+            body: body?.trim() || '', // Handle empty body when only attachments
             isReport: isReport || false,
             locationData: locationData ? JSON.parse(JSON.stringify(locationData)) : undefined,
             attachments: attachments ? JSON.parse(JSON.stringify(attachments)) : undefined,
@@ -180,7 +180,7 @@ export function setupChatHandlers(io: SocketIOServer<ClientToServerEvents, Serve
           roomId,
           user.nip,
           user.nama,
-          body.trim(),
+          body?.trim() || (attachments?.length ? '📎 Sent an attachment' : ''),
           room?.nama || 'Chat DPUPR'
         ).catch(console.error);
         

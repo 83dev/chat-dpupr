@@ -38,6 +38,7 @@ router.get('/rooms', async (req: Request, res: Response<ApiResponse<RoomWithMemb
           },
         },
         messages: {
+          where: { isDeleted: false },
           orderBy: { createdAt: 'desc' },
           take: 1,
           include: {
@@ -68,6 +69,7 @@ router.get('/rooms', async (req: Request, res: Response<ApiResponse<RoomWithMemb
           where: {
             roomId: room.id,
             senderNip: { not: userNip },
+            isDeleted: false,
             NOT: {
               readBy: {
                 some: {
@@ -325,6 +327,12 @@ router.get('/rooms/:roomId/messages', async (req: Request, res: Response<Paginat
                 nama: true,
               },
             },
+          },
+        },
+        readBy: {
+          select: {
+            userNip: true,
+            readAt: true,
           },
         },
       },

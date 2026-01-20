@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ImageBackground,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,17 +19,16 @@ import { ChatInput } from '../../../components/ChatInput';
 import {
   fetchRoomMessages,
   fetchRoomDetails,
-  markMessagesRead,
 } from '../../../lib/api';
 import {
-  joinRoom,
-  leaveRoom,
   sendMessage as socketSendMessage,
   startTyping,
   stopTyping,
+  markMessagesRead,
 } from '../../../lib/socket';
 import { setBadgeCount } from '../../../lib/notifications';
 import type { Message, ChatRoom } from '../../../lib/types';
+import { theme } from '../../../lib/theme';
 
 export default function ChatRoomScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
@@ -62,7 +62,8 @@ export default function ChatRoomScreen() {
 
       setActiveRoom(roomId);
       clearRoomUnreadCount(roomId);
-      joinRoom(roomId);
+      // Note: Don't call joinRoom() - backend auto-joins all rooms on socket connect
+      // Don't call leaveRoom() on cleanup - we want to stay subscribed to all rooms
 
       // Update badge count
       const totalUnread = getTotalUnreadCount();
@@ -73,7 +74,6 @@ export default function ChatRoomScreen() {
       loadMessages(true);
 
       return () => {
-        leaveRoom(roomId);
         setActiveRoom(null);
       };
     }, [roomId])
@@ -82,8 +82,14 @@ export default function ChatRoomScreen() {
   // Mark messages as read when they are displayed
   useEffect(() => {
     if (rawMessages.length > 0 && user) {
+      // Find messages from other users that current user hasn't read yet
       const unreadMessageIds = rawMessages
-        .filter((m) => m.senderNip !== user.nip && m.status !== 'READ')
+        .filter((m) => {
+          if (m.senderNip === user.nip) return false; // Skip own messages
+          // Check if user has already read this message (exists in readBy)
+          const hasRead = m.readBy?.some(reader => reader.userNip === user.nip);
+          return !hasRead;
+        })
         .map((m) => m.id);
 
       if (unreadMessageIds.length > 0) {
@@ -160,8 +166,9 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const handleSend = (messageText: string) => {
-    if (!roomId || !messageText.trim()) return;
+  const handleSend = (messageText: string, attachments?: any[]) => {
+    if (!roomId) return;
+    if (!messageText.trim() && (!attachments || attachments.length === 0)) return;
 
     setIsSending(true);
 
@@ -169,6 +176,7 @@ export default function ChatRoomScreen() {
       {
         roomId,
         body: messageText.trim(),
+        attachments,
       },
       (response) => {
         setIsSending(false);
@@ -216,6 +224,8 @@ export default function ChatRoomScreen() {
           message={item} 
           isOwn={item.senderNip === user?.nip} 
           showSenderName={isFirstInSequence}
+          isFirstInSequence={isFirstInSequence}
+          isLastInSequence={isLastInSequence}
         />
       </View>
     );
@@ -226,16 +236,22 @@ export default function ChatRoomScreen() {
       <Stack.Screen
         options={{
           title: displayName,
-          headerTitleStyle: { fontWeight: '600', fontSize: 16 },
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 18, color: '#fff' },
           headerShadowVisible: false,
-          headerStyle: { backgroundColor: '#f0f2f5' },
+          headerStyle: { backgroundColor: theme.colors.headerBackground },
+          headerTintColor: '#fff'
         }}
       />
-      <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <ImageBackground 
+        source={{ uri: 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}
+        style={[styles.container, { paddingBottom: insets.bottom }]}
+        resizeMode="repeat"
+        imageStyle={{ opacity: 0.06 }} // Subtle doodle pattern
+      >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 100}
         >
           <FlatList
             ref={flatListRef}
@@ -249,15 +265,17 @@ export default function ChatRoomScreen() {
             ListFooterComponent={
               isLoading && hasMore ? (
                 <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color="#3b82f6" />
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
                 </View>
               ) : null
             }
             ListEmptyComponent={
               !isLoading ? (
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>Belum ada pesan</Text>
-                  <Text style={styles.emptySubtext}>Kirim pesan pertama!</Text>
+                  <View style={styles.emptyBubble}>
+                     <Text style={styles.emptyText}>Belum ada pesan</Text>
+                     <Text style={styles.emptySubtext}>Kirim pesan untuk memulai obrolan</Text>
+                  </View>
                 </View>
               ) : null
             }
@@ -276,7 +294,7 @@ export default function ChatRoomScreen() {
             isSending={isSending}
           />
         </KeyboardAvoidingView>
-      </View>
+      </ImageBackground>
     </>
   );
 }
@@ -284,7 +302,7 @@ export default function ChatRoomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#efeae2',
+    backgroundColor: theme.colors.chatBackground,
   },
   loadingContainer: {
     flex: 1,
@@ -305,33 +323,43 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     transform: [{ scaleY: -1 }], 
   },
+  emptyBubble: {
+      backgroundColor: 'rgba(255,255,255,0.6)',
+      padding: 16,
+      borderRadius: 16,
+      alignItems: 'center',
+  },
   emptyText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#64748b',
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
   },
   typingContainer: {
     paddingHorizontal: 16,
     paddingVertical: 4,
     backgroundColor: 'transparent',
     position: 'absolute',
-    bottom: 70, 
+    bottom: 80, 
     left: 0,
     zIndex: 10,
   },
   typingText: {
     fontSize: 12,
-    color: '#64748b',
-    fontStyle: 'italic',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
 });

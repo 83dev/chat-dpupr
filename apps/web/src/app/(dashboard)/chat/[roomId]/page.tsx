@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useChatStore, useAuthStore } from '@/stores';
 import { fetchAPI, formatMessageTime, getInitials } from '@/lib/utils';
-import { joinRoom, leaveRoom, sendMessage, startTyping, stopTyping, markMessagesRead, deleteMessage } from '@/lib/socket';
+import { sendMessage, startTyping, stopTyping, markMessagesRead, deleteMessage } from '@/lib/socket';
 import type { ApiResponse, Message, PaginatedResponse, Attachment, ChatRoom } from '@/lib/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,6 @@ export default function ChatRoomPage() {
     if (!roomId) return;
 
     setActiveRoom(roomId);
-    joinRoom(roomId);
     clearRoomUnreadCount(roomId); // Clear unread badge when opening chat
     
     fetchAPI<PaginatedResponse<Message>>(`/api/chat/rooms/${roomId}/messages`)
@@ -100,9 +99,11 @@ export default function ChatRoomPage() {
 
     return () => {
       setActiveRoom(null);
-      leaveRoom(roomId);
+      // Note: Don't call leaveRoom() here - we want to stay subscribed to all rooms
+      // to receive real-time messages. The backend auto-joins all rooms on connect.
+      // leaveRoom() should only be used when actually leaving room membership.
     };
-  }, [roomId, setActiveRoom, setMessages, scrollToBottom]);
+  }, [roomId, setActiveRoom, setMessages, scrollToBottom, clearRoomUnreadCount]);
 
   // Scroll smoothly when new messages arrive
   useEffect(() => {
@@ -122,13 +123,19 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!roomId || !user?.nip || roomMessages.length === 0 || isLoading) return;
     
-    // Find unread messages from other users that haven't been marked yet
+    // Find unread messages from other users that:
+    // 1. Not sent by current user
+    // 2. Not already in markedAsReadRef (already sent mark-read in this session)
+    // 3. Current user is NOT in readBy array (hasn't been marked as read in DB)
     const unreadMessageIds = roomMessages
-      .filter(msg => 
-        msg.senderNip !== user.nip && 
-        msg.status !== 'READ' && 
-        !markedAsReadRef.current.has(msg.id)
-      )
+      .filter(msg => {
+        if (msg.senderNip === user.nip) return false; // Skip own messages
+        if (markedAsReadRef.current.has(msg.id)) return false; // Skip already marked in this session
+        
+        // Check if user has already read this message (exists in readBy)
+        const hasRead = msg.readBy?.some(reader => reader.userNip === user.nip);
+        return !hasRead;
+      })
       .map(msg => msg.id);
     
     if (unreadMessageIds.length > 0) {
@@ -136,7 +143,7 @@ export default function ChatRoomPage() {
       unreadMessageIds.forEach(id => markedAsReadRef.current.add(id));
       markMessagesRead(roomId, unreadMessageIds);
     }
-  }, [roomId, roomMessages.length, user?.nip, isLoading]);
+  }, [roomId, roomMessages, user?.nip, isLoading]);
 
   // Handle typing indication
   const handleTyping = useCallback(() => {
@@ -205,60 +212,70 @@ export default function ChatRoomPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-950">
+    <div className="flex flex-col h-full overflow-hidden bg-[var(--wa-bg-default)] dark:bg-[var(--wa-bg-default)] relative">
+      {/* Chat Doodle Background Pattern */}
+      <div className="absolute inset-0 opacity-[0.06] dark:opacity-[0.04] pointer-events-none z-0" 
+           style={{ backgroundImage: `url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")`, backgroundSize: '400px' }} 
+      />
+
       {/* Header */}
-      <header className="h-16 shrink-0 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center gap-3 bg-white dark:bg-slate-950">
-        <Link href="/" className="lg:hidden">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
+      <header className="h-[60px] shrink-0 bg-[var(--wa-header-bg)] px-2 flex items-center gap-1 z-10 shadow-sm">
+        <div className="flex items-center">
+            <Link href="/" className="lg:hidden text-white rounded-full p-1 mr-1">
+            <ArrowLeft className="h-6 w-6" />
+            </Link>
+            
+            <Avatar className="h-9 w-9 cursor-pointer ml-1">
+            <AvatarFallback className="bg-slate-200 dark:bg-slate-700 text-sm font-medium text-slate-700">
+                {getInitials(displayName)}
+            </AvatarFallback>
+            </Avatar>
+        </div>
         
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-sm">
-            {getInitials(displayName)}
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-slate-900 dark:text-white truncate">
+        <div className="flex-1 min-w-0 ml-2 cursor-pointer">
+          <h2 className="font-semibold text-white text-[16px] truncate leading-tight">
             {displayName}
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-white/80 truncate leading-tight mt-0.5">
             {room?.type === 'BIDANG' && 'Grup Bidang'}
             {room?.type === 'PROYEK' && room.proyekNama}
             {room?.type === 'PRIVATE' && (
-              <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`} />
-                {isOnline ? 'Online' : 'Offline'}
-              </span>
+              isOnline ? 'Online' : 'Offline' // Chat usually doesn't show offline status text, just nothing or 'last seen'
             )}
           </p>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/map?room=${roomId}`}>
-                <MapPin className="mr-2 h-4 w-4" />
-                Lihat Lokasi Laporan
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+             {/* Phone/Video icons could go here */}
+            {/* <Button variant="ghost" size="icon" className="text-white rounded-full h-10 w-10">
+              <Phone className="h-5 w-5" />
+            </Button> */}
+
+            <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white rounded-full h-10 w-10">
+                <MoreVertical className="h-5 w-5" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                <Link href={`/map?room=${roomId}`}>
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Lihat Lokasi Laporan
+                </Link>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
       </header>
 
-      {/* Messages - flex-1 with min-h-0 to allow shrinking */}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea className="h-full p-4">
-          <div className="space-y-4 pb-4">
-          {roomMessages.map((msg) => {
+      {/* Messages */}
+      <div className="flex-1 min-h-0 overflow-hidden z-0">
+        <ScrollArea className="h-full px-2 sm:px-4 py-2">
+          <div className="space-y-1 pb-4"> {/* Reduced space between messages */}
+          {roomMessages.map((msg, index) => {
             const isOwn = msg.senderNip === user?.nip;
+            const isFirstInSequence = index === 0 || roomMessages[index - 1].senderNip !== msg.senderNip;
             
             const handleDeleteMessage = () => {
               if (!confirm('Hapus pesan ini?')) return;
@@ -272,32 +289,34 @@ export default function ChatRoomPage() {
             return (
               <div 
                 key={msg.id} 
-                className={`flex gap-2 group ${isOwn ? 'justify-end' : 'justify-start'}`}
+                className={`group flex w-full ${isOwn ? 'justify-end' : 'justify-start'} ${isFirstInSequence ? 'mt-2' : 'mt-0.5'}`}
               >
-                {!isOwn && (
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarFallback className="bg-slate-200 dark:bg-slate-700 text-xs">
-                      {getInitials(msg.sender.nama)}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-                
-                <div className={`max-w-[75%] ${isOwn ? 'items-end' : 'items-start'}`}>
-                  {!isOwn && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 px-1">
+                <div 
+                  className={`
+                    relative max-w-[85%] sm:max-w-[75%] px-2 py-1.5 shadow-sm text-sm rounded-lg
+                    ${isOwn 
+                      ? 'bg-[var(--wa-outgoing-bg)] dark:bg-[var(--wa-outgoing-bg)] text-slate-900 rounded-tr-none' 
+                      : 'bg-[var(--wa-incoming-bg)] dark:bg-[var(--wa-incoming-bg)] text-slate-900 dark:text-gray-100 rounded-tl-none'}
+                  `}
+                  style={{
+                      // Optional: Add subtle "tail" using clip-path or absolute pseudo-element if desired. 
+                      // Simple rounded corners work well enough for now.
+                  }}
+                >
+                    {/* Add visual tail via SVG/Pseudo if we want to be very precise, but CSS corners is standard "Modern Chat" web look */}
+                    
+                  {!isOwn && isFirstInSequence && room?.type !== 'PRIVATE' && (
+                    <p className={`text-xs font-bold mb-0.5 px-1 ${
+                        // Generating a color based on name hash could be cool, hardcoding acceptable for now
+                        'text-orange-600'
+                    }`}>
                       {msg.sender.nama}
                     </p>
                   )}
                   
-                  <div 
-                    className={`rounded-2xl px-4 py-2 ${
-                      isOwn 
-                        ? 'bg-blue-600 text-white rounded-br-md' 
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-md'
-                    }`}
-                  >
+                  <div className="px-1">
                     {msg.isReport && msg.locationData && (
-                      <div className={`flex items-center gap-1 text-xs mb-1 ${isOwn ? 'text-blue-200' : 'text-slate-500'}`}>
+                      <div className={`flex items-center gap-1 text-xs mb-1 p-1 bg-black/5 rounded ${isOwn ? 'text-green-800' : 'text-slate-600'}`}>
                         <MapPin className="h-3 w-3" />
                         Laporan Proyek
                       </div>
@@ -305,7 +324,7 @@ export default function ChatRoomPage() {
                     
                     {/* Attachments */}
                     {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
-                      <div className="mb-2 space-y-2">
+                      <div className="mb-1 space-y-1">
                         {(msg.attachments as Attachment[]).map((att, idx) => (
                           att.mimetype?.startsWith('image/') ? (
                             <a 
@@ -318,7 +337,7 @@ export default function ChatRoomPage() {
                               <img 
                                 src={`${process.env.NEXT_PUBLIC_BACKEND_URL}${att.url}`}
                                 alt={att.originalName || 'attachment'}
-                                className="max-w-full rounded-lg max-h-60 object-cover"
+                                className="max-w-full rounded-md max-h-80 object-cover"
                               />
                             </a>
                           ) : (
@@ -327,76 +346,64 @@ export default function ChatRoomPage() {
                               href={`${process.env.NEXT_PUBLIC_BACKEND_URL}${att.url}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`flex items-center gap-2 p-2 rounded-lg ${
-                                isOwn ? 'bg-blue-500/30' : 'bg-slate-200 dark:bg-slate-700'
-                              }`}
+                              className="flex items-center gap-2 p-2 rounded-md bg-black/5 dark:bg-white/10"
                             >
-                              <FileText className="h-5 w-5 shrink-0" />
+                              <FileText className="h-6 w-6 shrink-0 text-slate-500" />
                               <span className="text-sm truncate flex-1">{att.originalName || 'File'}</span>
-                              <Download className="h-4 w-4 shrink-0" />
+                              <Download className="h-4 w-4 shrink-0 opacity-50" />
                             </a>
                           )
                         ))}
                       </div>
                     )}
                     
-                  <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.body}</p>
                   </div>
                   
-                  <p className={`text-xs text-slate-400 mt-1 px-1 flex items-center gap-1 ${isOwn ? 'justify-end' : ''}`}>
-                    {formatMessageTime(msg.createdAt)}
+                  {/* Timestamp & Status */}
+                  <div className="flex justify-end items-center gap-1 mt-0.5 px-1 select-none">
+                    <span className={`text-[10px] ${isOwn ? 'text-green-800/60' : 'text-slate-500'}`}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                     {isOwn && (
-                      msg.status === 'READ' ? (
-                        <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
-                      ) : msg.status === 'DELIVERED' ? (
-                        <CheckCheck className="h-3.5 w-3.5" />
-                      ) : (
-                        <Check className="h-3.5 w-3.5" />
-                      )
+                      <span className={msg.status === 'READ' ? 'text-[var(--wa-check-blue)]' : 'text-[var(--wa-check-gray)]'}>
+                        {msg.status === 'READ' ? <CheckCheck className="h-3.5 w-3.5" /> : 
+                         msg.status === 'DELIVERED' ? <CheckCheck className="h-3.5 w-3.5" /> : 
+                         <Check className="h-3.5 w-3.5" />}
+                      </span>
                     )}
-                  </p>
+                  </div>
+
+                  {/* Delete dropdown for own messages */}
+                  {isOwn && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 hover:opacity-100 focus:opacity-100 p-1 rounded-full hover:bg-black/10 transition-opacity">
+                          <MoreVertical className="h-4 w-4 text-slate-500" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" side="left">
+                        <DropdownMenuItem onClick={handleDeleteMessage} className="text-red-600">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Hapus Pesan
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
-                
-                {/* Delete button for own messages */}
-                {isOwn && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem 
-                        onClick={handleDeleteMessage}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Hapus Pesan
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
               </div>
             );
           })}
           
-          {/* Typing indicator */}
-          {currentTyping.length > 0 && (
-            <div className="flex gap-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-slate-200 dark:bg-slate-700 text-xs">
-                  {getInitials(currentTyping[0].nama)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+           {/* Typing indicator */}
+           {currentTyping.length > 0 && (
+            <div className="flex gap-2 ml-4 mt-2">
+              <div className="bg-white dark:bg-[var(--wa-incoming-bg)] rounded-lg rounded-tl-none px-4 py-2 shadow-sm">
+                <div className="flex gap-1 items-center h-full">
+                  <span className="text-xs text-slate-500 mr-2">Typing</span>
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -408,41 +415,49 @@ export default function ChatRoomPage() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-950">
-        <div className="flex items-end gap-2">
-          <FileAttachment 
-            onFilesSelected={(attachments, caption) => {
-              // Send message with attachments and optional caption
-              sendMessage({ roomId, body: caption || '', attachments }, (response) => {
-                if (!response.success) {
-                  console.error('Send attachment failed:', response.error);
-                }
-              });
-            }}
-          />
-          
-          <Textarea
-            ref={inputRef}
-            value={messageText}
-            onChange={(e) => {
-              setMessageText(e.target.value);
-              handleTyping();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Ketik pesan..."
-            className="min-h-[44px] max-h-32 resize-none rounded-2xl bg-slate-100 dark:bg-slate-800 border-0"
-            rows={1}
-          />
+      <div className="shrink-0 p-2 bg-[var(--wa-bg-default)] z-10 flex items-end gap-2 pb-safe">
+          <div className="flex-1 bg-white dark:bg-[var(--wa-incoming-bg)] rounded-[24px] flex items-end shadow-sm border border-transparent focus-within:border-white overflow-hidden min-h-[48px]">
+             <div className="pb-3 pl-2">
+                 {/* Emoji button could go here */}
+                 {/* <Smile className="text-slate-400 h-6 w-6 m-1 cursor-pointer hover:text-slate-600" /> */}
+             </div>
+             
+             <FileAttachment 
+                onFilesSelected={(attachments, caption) => {
+                sendMessage({ roomId, body: caption || '', attachments }, (response) => {
+                    if (!response.success) {
+                    console.error('Send attachment failed:', response.error);
+                    }
+                });
+                }}
+            />
+
+            <Textarea
+                ref={inputRef}
+                value={messageText}
+                onChange={(e) => {
+                setMessageText(e.target.value);
+                handleTyping();
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Ketik pesan"
+                className="flex-1 min-h-[48px] max-h-32 py-3 px-2 resize-none bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-400"
+                rows={1}
+            />
+             
+             <div className="pb-3 pr-3">
+                 {/* Camera icon could go here */}
+             </div>
+          </div>
           
           <Button 
             onClick={handleSend}
             disabled={!messageText.trim() || isSending}
             size="icon"
-            className="shrink-0 rounded-full bg-blue-600 hover:bg-blue-700"
+            className="shrink-0 h-12 w-12 rounded-full bg-[var(--wa-teal)] hover:bg-[var(--wa-teal-dark)] text-white shadow-md mb-0 transition-transform active:scale-95"
           >
-            <Send className="h-5 w-5" />
+            {messageText.trim() ? <Send className="h-5 w-5 ml-0.5" /> : <span className="text-xl">🎙️</span> /* Mic icon placeholder when empty */}
           </Button>
-        </div>
       </div>
     </div>
   );

@@ -2,7 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import type { JWTPayload, ApiResponse } from '../types/index.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// Validate JWT_SECRET is properly configured
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === 'your-secret-key') {
+  console.error('❌ FATAL: JWT_SECRET environment variable is not set or using default value!');
+  console.error('   Please set a secure JWT_SECRET in your .env file.');
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-secret-key-not-for-production';
 
 // Verify JWT token and attach user to request
 export function authMiddleware(
@@ -25,7 +34,7 @@ export function authMiddleware(
     const token = authHeader.split(' ')[1];
     
     // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET) as JWTPayload;
     
     // Attach user to request
     req.user = decoded;
@@ -59,13 +68,13 @@ export function authMiddleware(
 export function generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
   const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   const options: SignOptions = { expiresIn: expiresIn as jwt.SignOptions['expiresIn'] };
-  return jwt.sign(payload, JWT_SECRET, options);
+  return jwt.sign(payload, EFFECTIVE_JWT_SECRET, options);
 }
 
 // Verify token without middleware (for Socket.io)
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, EFFECTIVE_JWT_SECRET) as JWTPayload;
   } catch {
     return null;
   }
@@ -82,7 +91,7 @@ export function optionalAuth(
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+      const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET) as JWTPayload;
       req.user = decoded;
     }
   } catch {

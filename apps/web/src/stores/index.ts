@@ -172,13 +172,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
   
   updateRoomLastMessage: (roomId, message) => {
-    const rooms = get().rooms.map(room =>
+    const updatedRooms = get().rooms.map(room =>
       room.id === roomId
         ? { ...room, lastMessage: message, updatedAt: message.createdAt }
         : room
     );
-    // Sort by updatedAt
-    rooms.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    set({ rooms });
+    // Sort by updatedAt - create new sorted array to ensure React detects change
+    const sortedRooms = [...updatedRooms].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    set({ rooms: sortedRooms });
   },
 }));

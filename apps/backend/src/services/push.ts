@@ -68,22 +68,10 @@ export async function notifyRoomMembers(
   senderName: string,
   messageBody: string,
   roomName: string,
-  roomType?: string // Added roomType optional parameter
+  roomType?: string
 ): Promise<void> {
   try {
-    // Get all room members except the sender
-    const members = await prisma.chatRoomMember.findMany({
-      where: {
-        roomId,
-        userNip: { not: senderNip },
-        leftAt: null,
-      },
-      include: {
-        user: true,
-      },
-    });
-
-    // If roomType is not provided, try to fetch it
+    // Get room type if not provided
     let type = roomType;
     if (!type) {
       const room = await prisma.chatRoom.findUnique({
@@ -93,44 +81,58 @@ export async function notifyRoomMembers(
       type = room?.type;
     }
 
-    // Filter members with push tokens and build messages
+    // FIXED: Get all room members with their push tokens in a SINGLE query
+    // This eliminates the N+1 query problem
+    const membersWithTokens = await prisma.chatRoomMember.findMany({
+      where: {
+        roomId,
+        userNip: { not: senderNip },
+        leftAt: null,
+      },
+      select: {
+        userNip: true,
+        user: {
+          select: {
+            pushToken: true,
+          },
+        },
+      },
+    });
+
+    // Build messages for members with push tokens
     const messages: PushMessage[] = [];
     
-    for (const member of members) {
-      // Access pushToken using raw query to avoid type issues
-      const userWithToken = await prisma.user.findUnique({
-        where: { nip: member.userNip },
-      }) as any;
-      
-      if (userWithToken?.pushToken) {
-        let title = roomName;
-        let body = messageBody;
+    for (const member of membersWithTokens) {
+      const pushToken = member.user.pushToken;
+      if (!pushToken) continue;
 
-        // WhatsApp style formatting
-        if (type === 'PRIVATE') {
-          // Private chat: Title is sender name, Body is message
-          title = senderName;
-          body = messageBody;
-        } else {
-          // Group/Bidang chat: Title is room name, Body is "Sender: Message"
-          title = roomName;
-          body = `${senderName}: ${messageBody}`;
-        }
+      let title = roomName;
+      let body = messageBody;
 
-        // Truncate body if too long
-        const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
-
-        messages.push({
-          to: userWithToken.pushToken,
-          title: title,
-          body: truncatedBody,
-          data: {
-            roomId,
-            type: 'new_message',
-          },
-          sound: 'default',
-        });
+      // Chat style formatting
+      if (type === 'PRIVATE') {
+        // Private chat: Title is sender name, Body is message
+        title = senderName;
+        body = messageBody;
+      } else {
+        // Group/Bidang chat: Title is room name, Body is "Sender: Message"
+        title = roomName;
+        body = `${senderName}: ${messageBody}`;
       }
+
+      // Truncate body if too long
+      const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
+
+      messages.push({
+        to: pushToken,
+        title: title,
+        body: truncatedBody,
+        data: {
+          roomId,
+          type: 'new_message',
+        },
+        sound: 'default',
+      });
     }
 
     if (messages.length > 0) {

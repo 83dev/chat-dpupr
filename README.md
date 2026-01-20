@@ -167,7 +167,7 @@ SSO_CLIENT_SECRET=your-client-secret
 
 ## 🖥️ Desktop App
 
-Aplikasi desktop mendukung fitur-fitur seperti WhatsApp Desktop:
+Aplikasi desktop mendukung fitur-fitur seperti Chat Desktop:
 
 ### Fitur
 - ✅ **System Tray** - Berjalan di background

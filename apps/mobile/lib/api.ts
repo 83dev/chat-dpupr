@@ -103,7 +103,7 @@ export async function uploadFile(uri: string, fileName: string, mimeType: string
     type: mimeType,
   } as any);
   
-  const response = await api.post('/api/chat/upload', formData, {
+  const response = await api.post('/api/upload/single', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -123,6 +123,23 @@ export async function unregisterPushToken() {
 
 export async function getCurrentUser() {
   const response = await api.get('/auth/me');
+  return response.data;
+}
+
+export async function searchUsers(query: string) {
+  const response = await api.get(`/api/chat/users/search?q=${encodeURIComponent(query)}`);
+  return response.data;
+}
+
+export async function createRoom(payload: {
+  nama: string;
+  type: string;
+  description?: string;
+  proyekKode?: string;
+  proyekNama?: string;
+  memberNips: string[];
+}) {
+  const response = await api.post('/api/chat/rooms', payload);
   return response.data;
 }
 

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format, isToday, isYesterday } from 'date-fns';
 import { id } from 'date-fns/locale';
-import type { ChatRoom } from '../lib/types';
+import type { ChatRoom, Message } from '../lib/types';
 import { useAuthStore } from '../stores';
 
 interface RoomListItemProps {
@@ -10,6 +10,9 @@ interface RoomListItemProps {
   isOnline?: boolean;
   onPress: () => void;
 }
+
+import { theme } from '../lib/theme';
+import { User as UserIcon, Building2, FolderOpen } from 'lucide-react-native';
 
 export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
   const { user } = useAuthStore();
@@ -44,24 +47,56 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
       .slice(0, 2);
   };
 
-  const lastMessagePreview = room.lastMessage?.body || 'Belum ada pesan';
+  const getLastMessagePreview = (message?: Message) => {
+    if (!message) return 'Belum ada pesan';
+
+    if (message.body) return message.body;
+
+    if (message.attachments && message.attachments.length > 0) {
+      const firstAttachment = message.attachments[0];
+      const name = firstAttachment.fileName || firstAttachment.originalName || firstAttachment.filename;
+      const type = firstAttachment.fileType || firstAttachment.mimetype;
+
+      // Check if it's an image
+      const isImage = type?.startsWith('image/') || 
+                      (name && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => 
+                        name.toLowerCase().endsWith(ext)
+                      ));
+      return isImage ? '📷 Foto' : '📄 Dokumen';
+    }
+
+    return 'Pesan kosong';
+  };
+
+  const lastMessagePreview = getLastMessagePreview(room.lastMessage);
   const truncatedMessage =
-    lastMessagePreview.length > 40
-      ? lastMessagePreview.substring(0, 40) + '...'
+    lastMessagePreview.length > 35
+      ? lastMessagePreview.substring(0, 35) + '...'
       : lastMessagePreview;
 
-  // Determine avatar color based on room type
-  const getAvatarColor = () => {
-    if (room.type === 'BIDANG') return '#8b5cf6'; // Violet for Bidang
-    if (room.type === 'PROYEK') return '#10b981'; // Emerald for Proyek
-    return '#3b82f6'; // Blue for Private
-  };
+  // Determine Default Avatar Icon
+  const AvatarContent = () => {
+      if (room.type === 'BIDANG') return <Building2 size={24} color="#fff" />;
+      if (room.type === 'PROYEK') return <FolderOpen size={24} color="#fff" />;
+      if (room.type === 'PRIVATE') return <Text style={styles.avatarText}>{getInitials(displayName)}</Text>;
+      
+      return <Text style={styles.avatarText}>{getInitials(displayName)}</Text>;
+  }
+
+  // Avatar Background color - lighter/neutral for Chat style or keep distinct? 
+  // Chat usually has gray generic avatars. Let's use a subtle color or keep distinct for utility.
+  // Let's keep distinct but muted.
+  const getAvatarBg = () => {
+     if (room.type === 'BIDANG') return '#a855f7'; 
+     if (room.type === 'PROYEK') return '#f97316';
+     return '#cfd8dc'; // Default gray for private
+  }
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.avatarContainer}>
-        <View style={[styles.avatar, { backgroundColor: getAvatarColor() }]}>
-          <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
+        <View style={[styles.avatar, { backgroundColor: getAvatarBg() }]}>
+           <AvatarContent />
         </View>
         {isOnline && <View style={styles.onlineIndicator} />}
       </View>
@@ -83,10 +118,10 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
             style={[styles.message, (room.unreadCount || 0) > 0 && styles.messageUnread]} 
             numberOfLines={1}
           >
-            {room.lastMessage?.sender?.nama && room.type !== 'PRIVATE'
-              ? `${room.lastMessage.sender.nama}: ${truncatedMessage}`
-              : truncatedMessage
-            }
+            {room.lastMessage?.sender?.nama && room.type !== 'PRIVATE' && (
+                <Text style={styles.senderNamePreview}>{room.lastMessage.sender.nama.split(' ')[0]}: </Text>
+            )}
+            {truncatedMessage}
           </Text>
           
           {(room.unreadCount || 0) > 0 && (
@@ -97,6 +132,7 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
             </View>
           )}
         </View>
+        <View style={styles.separator} />
       </View>
     </TouchableOpacity>
   );
@@ -105,48 +141,59 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
     alignItems: 'center',
+    height: 72,
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 16,
+    marginRight: 15,
   },
   avatar: {
-    width: 56, // Larger avatar
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '500', 
+    // Chat default avatars are weight 500ish
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#22c55e',
-    borderWidth: 2.5,
-    borderColor: '#fff',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: theme.colors.online,
+    borderWidth: 2,
+    borderColor: theme.colors.background,
   },
   contentContainer: {
     flex: 1,
+    height: '100%',
     justifyContent: 'center',
-    gap: 2,
+    position: 'relative',
+  },
+  separator: {
+    position: 'absolute',
+    bottom: -10, // Adjust to bottom of container
+    right: 0,
+    left: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.colors.border,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
+    alignItems: 'baseline',
+    marginBottom: 4,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -154,45 +201,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: 'bold', // Chat uses bold for unread, but generally boldish for names
+    color: theme.colors.text,
     flex: 1,
     marginRight: 8,
-    letterSpacing: -0.3,
   },
   time: {
     fontSize: 12,
-    color: '#64748b',
+    color: theme.colors.textSecondary,
     fontWeight: '400',
   },
   timeUnread: {
-    color: '#22c55e', // WhatsApp green for unread time
+    color: theme.colors.primary, // Green for unread time
     fontWeight: '600',
   },
   message: {
-    fontSize: 15,
-    color: '#64748b',
+    fontSize: 14,
+    color: theme.colors.textSecondary,
     flex: 1,
     marginRight: 8,
     fontWeight: '400',
   },
   messageUnread: {
-    color: '#334155',
-    fontWeight: '500',
+    color: theme.colors.text, // Darker text for unread message content (optional, WA usually keeps gray but bold)
+    fontWeight: '600',
+  },
+  senderNamePreview: {
+      color: theme.colors.text,
+      fontWeight: '500',
   },
   badge: {
-    backgroundColor: '#25D366', // WhatsApp green
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
+    backgroundColor: theme.colors.primary, // Green badge
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });

@@ -1,21 +1,31 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Linking } from 'react-native';
 import { format } from 'date-fns';
-import { Check, CheckCheck } from 'lucide-react-native';
-import type { Message } from '../lib/types';
+import { Check, CheckCheck, FileText } from 'lucide-react-native';
+import type { Message, Attachment } from '../lib/types';
+import { BACKEND_URL } from '../lib/api';
+import { theme } from '../lib/theme';
 
 interface ChatBubbleProps {
   message: Message;
   isOwn: boolean;
   showSenderName?: boolean;
+  isFirstInSequence?: boolean;
+  isLastInSequence?: boolean;
 }
 
-export function ChatBubble({ message, isOwn, showSenderName = true }: ChatBubbleProps) {
+export function ChatBubble({ 
+  message, 
+  isOwn, 
+  showSenderName = true,
+  isFirstInSequence = true,
+  isLastInSequence = true
+}: ChatBubbleProps) {
   const renderStatus = () => {
     if (!isOwn) return null;
 
-    const iconProps = { size: 14, strokeWidth: 2.5 };
-    const color = message.status === 'READ' ? '#34b7f1' : '#8696a0'; // WhatsApp-like colors
+    const iconProps = { size: 16, strokeWidth: 2 };
+    const color = message.status === 'READ' ? '#53bdeb' : '#8696a0'; // Chat blue check
 
     switch (message.status) {
       case 'READ':
@@ -28,40 +38,137 @@ export function ChatBubble({ message, isOwn, showSenderName = true }: ChatBubble
     }
   };
 
+  const getFullUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const baseUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+    const normalizedPath = url.startsWith('/') ? url : `/${url}`;
+    return `${baseUrl}${normalizedPath}`;
+  };
+
+  const handleAttachmentPress = (url?: string) => {
+    const fullUrl = getFullUrl(url);
+    if (!fullUrl) {
+      console.warn('Attachment URL is missing');
+      return;
+    }
+    Linking.openURL(fullUrl).catch((err) => console.error('Error opening URL:', err));
+  };
+
+  const renderAttachment = (attachment: Attachment, index: number) => {
+    const url = getFullUrl(attachment.fileUrl || attachment.url);
+    const name = attachment.fileName || attachment.originalName || attachment.filename || 'File';
+    const type = attachment.fileType || attachment.mimetype;
+    const size = attachment.fileSize || attachment.size;
+
+    const isImage = 
+      type?.startsWith('image/') || 
+      (name && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some(ext => 
+        name.toLowerCase().endsWith(ext)
+      ));
+    
+    if (isImage) {
+      return (
+        <TouchableOpacity 
+          key={`${attachment.id || index}-${index}`}
+          activeOpacity={0.9}
+          onPress={() => handleAttachmentPress(url)}
+          style={styles.imageAttachment}
+        >
+          {url ? (
+            <Image 
+              source={{ uri: url }} 
+              style={styles.image} 
+              resizeMode="cover" 
+            />
+          ) : (
+            <View style={[styles.image, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
+               <Text style={{ fontSize: 10, color: '#64748b' }}>No Image</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={`${attachment.id || index}-${index}`}
+        activeOpacity={0.7}
+        onPress={() => handleAttachmentPress(url)}
+        style={[styles.fileAttachment, isOwn ? styles.ownFileAttachment : styles.otherFileAttachment]}
+      >
+        <View style={styles.fileIcon}>
+          <FileText size={24} color={isOwn ? theme.colors.primaryDark : theme.colors.textSecondary} />
+        </View>
+        <View style={styles.fileInfo}>
+          <Text style={[styles.fileName]} numberOfLines={1}>
+            {name}
+          </Text>
+          <Text style={[styles.fileSize]}>
+            {size ? `${(size / 1024).toFixed(1)} KB` : 'Document'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const hasAttachments = message.attachments && message.attachments.length > 0;
+  
+  // Tailored corners logic
+  const bubbleRadius = 12; // Slightly smaller radius for WA feel
+  const sharpCorner = 0;
+  
+  const getBubbleStyle = () => {
+    const style: any = {
+      borderTopLeftRadius: bubbleRadius,
+      borderTopRightRadius: bubbleRadius,
+      borderBottomLeftRadius: bubbleRadius,
+      borderBottomRightRadius: bubbleRadius,
+    };
+
+    if (isOwn) {
+      if (isFirstInSequence) style.borderTopRightRadius = sharpCorner;
+    } else {
+      if (isFirstInSequence) style.borderTopLeftRadius = sharpCorner;
+    }
+
+    return style;
+  };
 
   return (
     <View style={[styles.container, isOwn ? styles.ownContainer : styles.otherContainer]}>
-      {/* Sender Name for other users in group chats */}
       {!isOwn && message.sender && showSenderName && (
-        <Text style={styles.senderName} numberOfLines={1}>
-          {message.sender.nama}
-        </Text>
+        // Not showing name in bubble for privacy/cleanliness unless Group? 
+        // WA shows it inside the bubble for groups. For now, let's keep it outside or inside?
+        // Let's put it slightly above/inside. WA puts it inside the bubble for received messages in groups.
+        // We'll mimic that structure by putting it inside the bubble container if we could, 
+        // but current structure has it outside. Let's keep distinct but minimal.
+        // Actually, let's move it INSIDE the bubble for the true WA feel on received group messages.
+        // But for now, to minimize structural refactoring, let's just style it cleanly.
+        // Wait, I can move it inside.
+        null
       )}
 
-      <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
+      <View style={[styles.bubble, isOwn ? styles.ownBubble : styles.otherBubble, getBubbleStyle()]}>
+        {/* Render sender name INSIDE bubble if not own and first in sequence */}
+        {!isOwn && message.sender && showSenderName && (
+            <Text style={styles.senderName} numberOfLines={1}>
+              {message.sender.nama}
+            </Text>
+        )}
+
         {hasAttachments && (
-          <View style={styles.attachmentContainer}>
-            {message.attachments!.map((attachment) => (
-              <View key={attachment.id} style={styles.attachment}>
-                <View style={styles.attachmentIcon}>
-                  <Text style={{ fontSize: 16 }}>📎</Text>
-                </View>
-                <Text style={styles.attachmentText} numberOfLines={1}>
-                  {attachment.fileName}
-                </Text>
-              </View>
-            ))}
+          <View style={styles.attachmentList}>
+            {message.attachments!.map((attachment, index) => renderAttachment(attachment, index))}
           </View>
         )}
 
-        {message.body && (
+        {message.body ? (
           <Text style={[styles.messageText, isOwn ? styles.ownText : styles.otherText]}>
             {message.body}
-            {/* Spacer to prevent text from overlapping with time */}
-            <Text style={styles.timeSpacer}>{'      '}</Text>
+            <Text style={styles.timeSpacer}>{'       '}</Text>
           </Text>
-        )}
+        ) : null}
 
         <View style={styles.metaContainer}>
           <Text style={[styles.time, isOwn ? styles.ownTime : styles.otherTime]}>
@@ -76,8 +183,8 @@ export function ChatBubble({ message, isOwn, showSenderName = true }: ChatBubble
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 2,
-    paddingHorizontal: 8,
+    marginVertical: 1, // Tighter spacing
+    paddingHorizontal: 8, // More horizontal space
     width: '100%',
     flexDirection: 'column',
   },
@@ -88,70 +195,88 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   senderName: {
-    fontSize: 12,
-    color: '#E15F29', // DPUPR brand color accent or neutral
-    fontWeight: '600',
+    fontSize: 13,
+    color: '#e07a5f', // Or a generated color
+    fontWeight: 'bold',
     marginBottom: 2,
-    marginLeft: 12,
-    maxWidth: '80%',
   },
   bubble: {
-    borderRadius: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 6,
     paddingBottom: 8,
     maxWidth: '80%',
-    minWidth: 80,
+    minWidth: 80, // Ensure space for time
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 1,
     elevation: 1,
   },
   ownBubble: {
-    backgroundColor: '#005c9a', // Deep Blue (DPUPR-ish) or standard chat blue
-    borderTopRightRadius: 4,
+    backgroundColor: theme.colors.bubbleOut, // Light Blue
   },
   otherBubble: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 4,
+    backgroundColor: theme.colors.bubbleIn, // White
   },
-  attachmentContainer: {
-    marginBottom: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+  attachmentList: {
+    marginBottom: 2,
+  },
+  imageAttachment: {
+    width: 240,
+    height: 160,
     borderRadius: 8,
-    padding: 4,
+    overflow: 'hidden',
+    backgroundColor: '#e2e8f0',
+    marginBottom: 4,
   },
-  attachment: {
+  image: {
+    width: '100%',
+    height: '100%',
+  },
+  fileAttachment: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 4,
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 4,
+    width: 240, 
+    backgroundColor: 'rgba(0,0,0,0.05)', // Subtle internal bg for files
   },
-  attachmentIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
+  ownFileAttachment: {
+      backgroundColor: 'rgba(0,128,105, 0.05)',
   },
-  attachmentText: {
-    fontSize: 14,
-    color: '#0f172a',
+  otherFileAttachment: {
+      backgroundColor: '#f0f2f5',
+  },
+  fileIcon: {
+    marginRight: 10,
+  },
+  fileInfo: {
     flex: 1,
   },
+  fileName: {
+    fontSize: 14,
+    color: theme.colors.text,
+    fontWeight: '500',
+  },
+  fileSize: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
   messageText: {
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 22,
-    paddingRight: 4, // Space for read receipt if brief
+    color: theme.colors.text,
   },
   ownText: {
-    color: '#ffffff',
+    color: theme.colors.text,
   },
   otherText: {
-    color: '#0f172a',
+    color: theme.colors.text,
   },
   timeSpacer: {
-    width: 40,
+    width: 45,
   },
   metaContainer: {
     flexDirection: 'row',
@@ -159,19 +284,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     position: 'absolute',
     bottom: 4,
-    right: 8,
+    right: 6,
   },
   time: {
-    fontSize: 10.5,
-    marginRight: 3,
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    fontWeight: '400',
   },
   ownTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#667781', // Gray-ish
   },
   otherTime: {
-    color: '#8696a0',
+    color: '#667781',
   },
   statusContainer: {
-    marginLeft: 2,
+    marginLeft: 3,
   },
 });

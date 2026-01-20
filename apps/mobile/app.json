@@ -38,13 +38,14 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "2eea0e42-1010-476d-a191-77a81b8bf089"
+        "projectId": "3a30ece1-ddb3-4a03-930e-9e2049a8a984"
       },
-      "backendUrl": "https://api-chat.dpupr.com"
+      "backendUrl": "https://api-chat.dpupr.com",
+      "router": {}
     },
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "yayanfr20"
+    "owner": "yayandev20"
   }
 }

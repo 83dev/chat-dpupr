@@ -63,8 +63,11 @@ interface ChatState {
   messages: Record<string, Message[]>;
   onlineUsers: Set<string>;
   typingUsers: Record<string, { nip: string; nama: string }[]>;
+  isConnected: boolean;
 
   setRooms: (rooms: ChatRoom[]) => void;
+  upsertRoom: (room: ChatRoom) => void;
+  setSocketConnected: (connected: boolean) => void;
   setActiveRoom: (roomId: string | null) => void;
   addMessage: (roomId: string, message: Message) => void;
   setMessages: (roomId: string, messages: Message[]) => void;
@@ -89,8 +92,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   messages: {},
   onlineUsers: new Set(),
   typingUsers: {},
+  isConnected: false,
 
   setRooms: (rooms) => set({ rooms }),
+  
+  upsertRoom: (room) => {
+    const current = get().rooms;
+    const exists = current.some((r) => r.id === room.id);
+    if (exists) {
+      set({
+        rooms: current.map((r) => (r.id === room.id ? { ...r, ...room } : r)),
+      });
+    } else {
+      set({ rooms: [room, ...current] });
+    }
+  },
+
+  setSocketConnected: (connected) => set({ isConnected: connected }),
 
   setActiveRoom: (roomId) => set({ activeRoomId: roomId }),
 
@@ -204,15 +222,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   updateRoomLastMessage: (roomId, message) => {
-    const rooms = get().rooms.map((room) =>
+    const updatedRooms = get().rooms.map((room) =>
       room.id === roomId
         ? { ...room, lastMessage: message, updatedAt: message.createdAt }
         : room
     );
-    rooms.sort(
+    // Create new sorted array to ensure React detects change
+    const sortedRooms = [...updatedRooms].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-    set({ rooms });
+    set({ rooms: sortedRooms });
   },
 
   getTotalUnreadCount: () => {

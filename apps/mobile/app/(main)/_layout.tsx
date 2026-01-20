@@ -6,19 +6,34 @@ export default function MainLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Chat DPUPR',
-          headerStyle: { backgroundColor: '#fff' },
-          headerTitleStyle: { fontWeight: '600', color: '#0f172a' },
-          headerShadowVisible: false,
+          // Options are handled in index.tsx
+          headerShown: true, 
         }}
       />
       <Stack.Screen
         name="chat/[roomId]"
         options={{
-          headerStyle: { backgroundColor: '#fff' },
-          headerTitleStyle: { fontWeight: '600', color: '#0f172a' },
-          headerShadowVisible: false,
-          headerBackTitle: 'Kembali',
+          headerShown: true,
+          title: '', // Dynamic in page
+        }}
+      />
+      <Stack.Screen
+        name="contacts/index"
+        options={{
+          title: 'Pilih Kontak',
+          presentation: 'modal', // Nice touch for contact picking
+        }}
+      />
+       <Stack.Screen
+        name="contacts/create-group"
+        options={{
+          title: 'Buat Grup',
+        }}
+      />
+      <Stack.Screen
+        name="map"
+        options={{
+          title: 'Peta Laporan',
         }}
       />
     </Stack>

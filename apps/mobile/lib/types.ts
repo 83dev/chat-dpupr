@@ -49,6 +49,7 @@ export interface Message {
   body: string;
   status: 'SENT' | 'DELIVERED' | 'READ';
   attachments?: Attachment[];
+  readBy?: { userNip: string; readAt: string }[];
   createdAt: string;
   updatedAt: string;
   sender: {
@@ -60,16 +61,24 @@ export interface Message {
 export interface Attachment {
   id: string;
   messageId: string;
-  fileName: string;
-  fileUrl: string;
-  fileType: string;
-  fileSize: number;
+  // Unified fields (Mobile preference)
+  fileName?: string;
+  fileUrl?: string;
+  fileType?: string;
+  fileSize?: number;
+  // Backend/Web response fields
+  url?: string;
+  filename?: string;
+  originalName?: string;
+  mimetype?: string;
+  size?: number;
 }
 
 export interface SendMessagePayload {
   roomId: string;
   body: string;
-  attachmentUrls?: string[];
+  attachments?: any[]; // Full attachment objects from backend upload
+  isReport?: boolean;
 }
 
 export interface ApiResponse<T> {

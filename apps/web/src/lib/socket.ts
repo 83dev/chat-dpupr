@@ -110,5 +110,3 @@ export function deleteMessage(
 ): void {
   socket?.emit('message:delete', { roomId, messageId }, callback);
 }
-
-export default socket;

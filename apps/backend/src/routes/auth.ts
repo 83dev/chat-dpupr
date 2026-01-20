@@ -4,6 +4,11 @@ import { generateToken } from '../middleware/auth.js';
 import prisma from '../config/database.js';
 import type { ApiResponse, JWTPayload } from '../types/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import {
+  upsertUserFromSSO,
+  autoJoinBidangRoom,
+  buildJWTPayload,
+} from '../helpers/auth.helper.js';
 
 const router = Router();
 
@@ -94,115 +99,14 @@ router.get('/callback', async (req: Request, res: Response<ApiResponse<{ token: 
       return;
     }
     
-    // Upsert Bidang if exists
-    let bidangId: number | undefined;
-    if (ssoUser.bidang) {
-      const bidang = await prisma.bidang.upsert({
-        where: { kode: ssoUser.bidang.kode },
-        create: {
-          kode: ssoUser.bidang.kode,
-          nama: ssoUser.bidang.nama,
-        },
-        update: {
-          nama: ssoUser.bidang.nama,
-        },
-      });
-      bidangId = bidang.id;
-    }
-    
-    // Upsert Jabatan if exists
-    let jabatanId: number | undefined;
-    if (ssoUser.jabatan) {
-      const jabatan = await prisma.jabatan.upsert({
-        where: { id: ssoUser.jabatan.id },
-        create: {
-          id: ssoUser.jabatan.id,
-          nama: ssoUser.jabatan.nama,
-        },
-        update: {
-          nama: ssoUser.jabatan.nama,
-        },
-      });
-      jabatanId = jabatan.id;
-    }
-    
-    // Check if there's an existing user with the same sso_id but different NIP
-    const existingUserBySsoId = await prisma.user.findFirst({
-      where: { ssoId: ssoUser.id },
-    });
-    
-    if (existingUserBySsoId && existingUserBySsoId.nip !== ssoUser.nip) {
-      // Delete the old user with wrong NIP (data conflict)
-      await prisma.user.delete({
-        where: { nip: existingUserBySsoId.nip },
-      });
-      console.log(`Deleted old user with wrong NIP: ${existingUserBySsoId.nip}`);
-    }
-    
-    // Upsert user in database
-    const user = await prisma.user.upsert({
-      where: { nip: ssoUser.nip },
-      create: {
-        nip: ssoUser.nip,
-        ssoId: ssoUser.id,
-        nama: ssoUser.nama,
-        email: ssoUser.email,
-        noHp: ssoUser.no_hp,
-        bidangId,
-        jabatanId,
-        lastSeen: new Date(),
-      },
-      update: {
-        ssoId: ssoUser.id,
-        nama: ssoUser.nama,
-        email: ssoUser.email,
-        noHp: ssoUser.no_hp,
-        bidangId,
-        jabatanId,
-        lastSeen: new Date(),
-      },
-    });
+    // Use helper to upsert user (consolidated logic)
+    const { user, bidangKode } = await upsertUserFromSSO(ssoUser);
     
     // Auto-join user to their department chat room
-    if (bidangId) {
-      const bidangRoom = await prisma.chatRoom.findFirst({
-        where: {
-          type: 'BIDANG',
-          bidangId: bidangId,
-        },
-      });
-      
-      if (bidangRoom) {
-        await prisma.chatRoomMember.upsert({
-          where: {
-            roomId_userNip: {
-              roomId: bidangRoom.id,
-              userNip: user.nip,
-            },
-          },
-          create: {
-            roomId: bidangRoom.id,
-            userNip: user.nip,
-            role: 'member',
-          },
-          update: {
-            leftAt: null, // Rejoin if previously left
-          },
-        });
-      }
-    }
+    await autoJoinBidangRoom(user.nip, user.bidangId);
     
     // Generate JWT token
-    const jwtPayload: Omit<JWTPayload, 'iat' | 'exp'> = {
-      nip: user.nip,
-      ssoId: user.ssoId,
-      nama: user.nama,
-      email: user.email,
-      bidangId: user.bidangId ?? undefined,
-      bidangKode: ssoUser.bidang?.kode,
-      jabatanId: user.jabatanId ?? undefined,
-    };
-    
+    const jwtPayload = buildJWTPayload(user, bidangKode);
     const token = generateToken(jwtPayload);
     
     // Clear OAuth state cookie
@@ -257,62 +161,11 @@ router.post('/token', async (req: Request, res: Response<ApiResponse<{ token: st
       return;
     }
     
-    // Upsert Bidang
-    let bidangId: number | undefined;
-    if (ssoUser.bidang) {
-      const bidang = await prisma.bidang.upsert({
-        where: { kode: ssoUser.bidang.kode },
-        create: { kode: ssoUser.bidang.kode, nama: ssoUser.bidang.nama },
-        update: { nama: ssoUser.bidang.nama },
-      });
-      bidangId = bidang.id;
-    }
-    
-    // Upsert Jabatan
-    let jabatanId: number | undefined;
-    if (ssoUser.jabatan) {
-      const jabatan = await prisma.jabatan.upsert({
-        where: { id: ssoUser.jabatan.id },
-        create: { id: ssoUser.jabatan.id, nama: ssoUser.jabatan.nama },
-        update: { nama: ssoUser.jabatan.nama },
-      });
-      jabatanId = jabatan.id;
-    }
-    
-    // Upsert user
-    const user = await prisma.user.upsert({
-      where: { nip: ssoUser.nip },
-      create: {
-        nip: ssoUser.nip,
-        ssoId: ssoUser.id,
-        nama: ssoUser.nama,
-        email: ssoUser.email,
-        noHp: ssoUser.no_hp,
-        bidangId,
-        jabatanId,
-        lastSeen: new Date(),
-      },
-      update: {
-        nama: ssoUser.nama,
-        email: ssoUser.email,
-        noHp: ssoUser.no_hp,
-        bidangId,
-        jabatanId,
-        lastSeen: new Date(),
-      },
-    });
+    // Use helper to upsert user (consolidated logic - now includes ssoId update)
+    const { user, bidangKode } = await upsertUserFromSSO(ssoUser);
     
     // Generate JWT
-    const jwtPayload: Omit<JWTPayload, 'iat' | 'exp'> = {
-      nip: user.nip,
-      ssoId: user.ssoId,
-      nama: user.nama,
-      email: user.email,
-      bidangId: user.bidangId ?? undefined,
-      bidangKode: ssoUser.bidang?.kode,
-      jabatanId: user.jabatanId ?? undefined,
-    };
-    
+    const jwtPayload = buildJWTPayload(user, bidangKode);
     const token = generateToken(jwtPayload);
     
     res.json({
@@ -387,3 +240,4 @@ router.post('/logout', authMiddleware, async (req: Request, res: Response<ApiRes
 });
 
 export default router;
+

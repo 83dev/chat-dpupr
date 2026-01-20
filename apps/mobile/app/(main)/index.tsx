@@ -7,14 +7,16 @@ import {
   Text,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
-import { LogOut, Settings } from 'lucide-react-native';
+import { LogOut, MessageSquarePlus, MapPin } from 'lucide-react-native';
 import { useChatStore, useAuthStore } from '../../stores';
 import { fetchRooms } from '../../lib/api';
 import { RoomListItem } from '../../components/RoomListItem';
-import { disconnectSocket } from '../../lib/socket';
+import { disconnectSocket, connectSocket } from '../../lib/socket';
 import { unregisterPushToken, setBadgeCount } from '../../lib/notifications';
+import { theme } from '../../lib/theme';
 
 export default function RoomListScreen() {
   const router = useRouter();
@@ -36,6 +38,8 @@ export default function RoomListScreen() {
   useFocusEffect(
     useCallback(() => {
       setActiveRoom(null);
+      // Ensure socket is connected when returning to list
+      connectSocket().catch(console.error);
       loadRooms();
     }, [])
   );
@@ -84,50 +88,109 @@ export default function RoomListScreen() {
     return false;
   };
 
+  // "New Chat" Action
+  const handleNewChat = () => {
+      // Navigate to /contacts. Using 'as any' to bypass strict strict-typed route mismatch 
+      // between (main) group opacity and file structure.
+      router.push('/contacts' as any); 
+  };
+
+  const [filter, setFilter] = useState<'all' | 'BIDANG' | 'PROYEK' | 'PRIVATE'>('all');
+
+  const filteredRooms = rooms.filter(room => {
+      if (filter === 'all') return true;
+      return room.type === filter;
+  });
+
   return (
     <>
       <Stack.Screen
         options={{
           title: 'Chat DPUPR',
           headerLargeTitle: false,
+          headerStyle: { backgroundColor: theme.colors.primary },
+          headerTintColor: '#fff',
+          headerTitleStyle: { fontWeight: 'bold', fontSize: 20 },
           headerRight: () => (
-            <TouchableOpacity onPress={handleLogout} style={{ marginRight: 16 }}>
-              <LogOut size={24} color="#ef4444" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => router.push('/(main)/map')} style={{ marginRight: 16 }}>
+                    <MapPin size={24} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleLogout} style={{ marginRight: 16 }}>
+                    <LogOut size={24} color="#fff" />
+                </TouchableOpacity>
+            </View>
           ),
+          headerShadowVisible: false, // Clean header like WA
         }}
       />
+      {!useChatStore((s) => s.isConnected) && (
+        <View style={styles.offlineContainer}>
+          <Text style={styles.offlineText}>Menghubungkan...</Text>
+        </View>
+      )}
       <View style={styles.container}>
-        {rooms.length === 0 ? (
+        {/* Filter Chips */}
+        <View style={styles.filterContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+                {(['all', 'BIDANG', 'PROYEK', 'PRIVATE'] as const).map(f => (
+                    <TouchableOpacity
+                        key={f}
+                        style={[
+                            styles.filterChip, 
+                            filter === f && styles.filterChipActive
+                        ]}
+                        onPress={() => setFilter(f)}
+                    >
+                        <Text style={[
+                            styles.filterText,
+                            filter === f && styles.filterTextActive
+                        ]}>
+                            {f === 'all' ? 'Semua' : f === 'BIDANG' ? 'Bidang' : f === 'PROYEK' ? 'Proyek' : 'Private'}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        </View>
+
+        {filteredRooms.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>Belum ada chat</Text>
             <Text style={styles.emptySubtext}>
-              Tarik ke bawah untuk refresh
+              {rooms.length === 0 ? 'Mulai chat baru dengan teman kerja Anda' : 'Tidak ada chat di kategori ini'}
             </Text>
           </View>
         ) : (
           <FlatList
-            data={rooms}
+            data={filteredRooms}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <RoomListItem
                 room={item}
-                isOnline={isInitialLoad ? undefined : isUserOnline(item)}
+                isOnline={isUserOnline(item)}
                 onPress={() => handleRoomPress(item.id)}
               />
             )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={['#3b82f6']}
-                tintColor="#3b82f6"
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
               />
             }
             contentContainerStyle={styles.listContent}
           />
         )}
+        
+        {/* Floating Action Button */}
+        <TouchableOpacity 
+            style={styles.fab} 
+            onPress={handleNewChat}
+            activeOpacity={0.8}
+        >
+            <MessageSquarePlus size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
     </>
   );
@@ -138,14 +201,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  filterContainer: {
+      backgroundColor: theme.colors.primary,
+      paddingBottom: 12,
+  },
+  filterContent: {
+      paddingHorizontal: 12,
+  },
+  filterChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      marginRight: 8,
+  },
+  filterChipActive: {
+      backgroundColor: '#fff',
+  },
+  filterText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '500',
+  },
+  filterTextActive: {
+      color: theme.colors.primary,
+  },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 80, 
   },
-  separator: {
-    height: 1,
-    backgroundColor: '#f1f5f9',
-    marginLeft: 88, // Indent separator to align with text
-  },
+  // separator: {
+  //   height: 1,
+  //   backgroundColor: '#f1f5f9',
+  //   marginLeft: 82, 
+  // },
   logoutButton: {
     padding: 8,
   },
@@ -157,15 +245,40 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#64748b',
+    fontWeight: '700',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
-  emptyList: {
-    flex: 1,
+  offlineContainer: {
+    backgroundColor: theme.colors.primaryDark,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offlineText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  fab: {
+      position: 'absolute',
+      bottom: 24,
+      right: 24,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      elevation: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
   },
 });

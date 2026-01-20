@@ -47,32 +47,71 @@ export async function exchangeCodeForToken(code: string): Promise<{
   expires_in: number;
   token_type: string;
 }> {
-  const response = await axios.post(ssoConfig.tokenEndpoint, {
-    grant_type: 'authorization_code',
-    client_id: ssoConfig.clientId,
-    client_secret: ssoConfig.clientSecret,
-    redirect_uri: ssoConfig.redirectUri,
-    code,
-  }, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-  });
-  
-  return response.data;
+  try {
+    const response = await axios.post(ssoConfig.tokenEndpoint, {
+      grant_type: 'authorization_code',
+      client_id: ssoConfig.clientId,
+      client_secret: ssoConfig.clientSecret,
+      redirect_uri: ssoConfig.redirectUri,
+      code,
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      timeout: 10000, // 10 second timeout
+    });
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message || error.message;
+      
+      if (status === 401) {
+        throw new Error('SSO: Invalid or expired authorization code');
+      } else if (status === 400) {
+        throw new Error(`SSO: Bad request - ${message}`);
+      } else if (error.code === 'ECONNREFUSED') {
+        throw new Error('SSO: Unable to connect to SSO server');
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error('SSO: Connection timeout');
+      }
+      
+      throw new Error(`SSO token exchange failed: ${message}`);
+    }
+    throw error;
+  }
 }
 
 // Get user profile from SSO
 export async function getUserProfile(accessToken: string): Promise<SSOUserProfile> {
-  const response = await axios.get(ssoConfig.userInfoEndpoint, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
-  
-  return response.data;
+  try {
+    const response = await axios.get(ssoConfig.userInfoEndpoint, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+      },
+      timeout: 10000, // 10 second timeout
+    });
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      
+      if (status === 401) {
+        throw new Error('SSO: Invalid or expired access token');
+      } else if (error.code === 'ECONNREFUSED') {
+        throw new Error('SSO: Unable to connect to SSO server');
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error('SSO: Connection timeout');
+      }
+      
+      throw new Error(`SSO: Failed to get user profile - ${error.message}`);
+    }
+    throw error;
+  }
 }
 
 // Logout from SSO

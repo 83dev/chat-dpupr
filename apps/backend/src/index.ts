@@ -19,24 +19,46 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
 
+// Build allowed origins list from environment
+const ALLOWED_ORIGINS = (() => {
+  const origins = new Set<string>([
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://localhost:3000',
+    'http://localhost:8081', // Expo dev server
+  ]);
+  
+  // Add additional origins from env if specified
+  if (process.env.ADDITIONAL_ORIGINS) {
+    process.env.ADDITIONAL_ORIGINS.split(',').forEach(o => origins.add(o.trim()));
+  }
+  
+  return origins;
+})();
+
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'http://localhost:3000',
-      'http://localhost:8081', // Expo dev server
-      'exp://localhost:8081',
-    ];
-    
-    if (allowedOrigins.includes(origin) || origin.startsWith('exp://')) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for now (mobile apps)
+    // Check if origin is in allowed list
+    if (ALLOWED_ORIGINS.has(origin)) {
+      return callback(null, true);
     }
+    
+    // Allow Expo development URLs
+    if (origin.startsWith('exp://') || origin.includes('expo')) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all origins with a warning
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`⚠️ CORS: Allowing unlisted origin in dev mode: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // In production, reject unlisted origins
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true,
 }));

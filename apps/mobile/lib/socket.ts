@@ -34,16 +34,24 @@ export function getSocket(): TypedSocket | null {
 }
 
 export async function connectSocket(): Promise<TypedSocket | null> {
-  if (socket?.connected) {
-    return socket;
-  }
-
   const token = await getStoredToken();
   if (!token) {
     console.log('No token available for socket connection');
     return null;
   }
 
+  // Reuse existing socket instance if possible to preserve listeners
+  if (socket) {
+    if (!socket.connected) {
+      console.log('♻️ Reusing existing socket, connecting...');
+      // Update auth token in case it changed
+      (socket.auth as any).token = token;
+      socket.connect();
+    }
+    return socket;
+  }
+
+  console.log('🆕 Creating new socket connection...');
   socket = io(BACKEND_URL, {
     auth: { token },
     transports: ['websocket', 'polling'],
@@ -111,5 +119,3 @@ export function markMessagesRead(roomId: string, messageIds: string[]): void {
     socket?.emit('messages:mark-read', { roomId, messageIds });
   }
 }
-
-export default socket;

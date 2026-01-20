@@ -4,7 +4,7 @@ import { useEffect, useState, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useChatStore } from '@/stores';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
-import { fetchAPI } from '@/lib/utils';
+import { fetchAPI, getInitials } from '@/lib/utils';
 import { requestNotificationPermission, showMessageNotification, playNotificationSound, updateBadgeCount } from '@/lib/notifications';
 import type { ApiResponse, ChatRoom, Message } from '@/lib/types';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
@@ -143,15 +143,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(w => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   return (
     <div className="h-screen flex bg-slate-50 dark:bg-slate-900">
       {/* Desktop Sidebar */}
@@ -162,26 +153,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header (Mobile) */}
-        <header className="lg:hidden flex items-center justify-between px-4 h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <header className="lg:hidden flex items-center justify-between px-4 h-[60px] bg-[var(--wa-header-bg)] text-white shadow-sm z-20">
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-80 p-0">
+            <SheetContent side="left" className="w-80 p-0 border-r-0">
               <SheetTitle className="sr-only">Menu Navigasi</SheetTitle>
               <ChatSidebar onRoomSelect={() => setSidebarOpen(false)} />
             </SheetContent>
           </Sheet>
 
-          <h1 className="font-semibold text-slate-900 dark:text-white">Chat DPUPR</h1>
+          <h1 className="font-bold text-lg tracking-tight">Chat DPUPR</h1>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+              <Button variant="ghost" size="icon" className="rounded-full text-white hover:bg-white/10">
+                <Avatar className="h-8 w-8 ring-2 ring-white/20">
+                  <AvatarFallback className="bg-white/10 text-white text-xs">
                     {user?.nama ? getInitials(user.nama) : 'U'}
                   </AvatarFallback>
                 </Avatar>
