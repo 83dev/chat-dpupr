@@ -9,11 +9,23 @@
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Expo](https://img.shields.io/badge/Expo-SDK%2052-000020?style=flat-square&logo=expo&logoColor=white)](https://expo.dev/)
 [![Electron](https://img.shields.io/badge/Electron-28-47848F?style=flat-square&logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
 
 </div>
+
+---
+
+## 📥 Download
+
+| Platform | Download | Status |
+|----------|----------|--------|
+| 🌐 **Web** | [chat.dpupr.com](https://chat.dpupr.com) | ✅ Live |
+| 🖥️ **Desktop (Windows)** | [Download .exe](https://github.com/83dev/chat-dpupr/releases/download/v1.0.0/Chat.DPUPR.Setup.1.0.0.exe) | ✅ v1.0.0 |
+| 📱 **Android** | [Download .apk](https://expo.dev/artifacts/eas/DkbXCUCfEYBrv296ZidHt.apk) | ✅ v1.0.0 |
+| 🍎 **iOS** | Coming Soon | 🚧 |
 
 ---
 
@@ -27,7 +39,8 @@ Chat DPUPR adalah aplikasi chat internal real-time yang dirancang khusus untuk k
 - 🔔 **Notifikasi** - Pemberitahuan pesan baru
 - 🔐 **SSO Integration** - Login menggunakan SSO DPUPR
 - 🖥️ **Desktop App** - Aplikasi Windows dengan fitur background running
-- 📱 **Responsive Web** - Akses dari berbagai perangkat
+- 📱 **Mobile App** - Aplikasi Android & iOS native
+- 🌐 **Responsive Web** - Akses dari berbagai perangkat
 
 ---
 
@@ -38,6 +51,7 @@ sistem-chat-internal-dpupr-banten/
 ├── apps/
 │   ├── backend/          # Express.js + Socket.IO + Prisma
 │   ├── web/              # Next.js 16 (React 19)
+│   ├── mobile/           # Expo React Native
 │   └── desktop/          # Electron Desktop App
 ├── docker-compose.yml    # Docker orchestration
 └── .env.production       # Production environment variables
@@ -48,6 +62,7 @@ sistem-chat-internal-dpupr-banten/
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | Next.js 16, React 19, TailwindCSS, Zustand |
+| **Mobile** | Expo SDK 52, React Native |
 | **Backend** | Express.js, Socket.IO, Prisma ORM |
 | **Desktop** | Electron 28 |
 | **Database** | PostgreSQL 15 |
