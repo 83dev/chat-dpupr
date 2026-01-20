@@ -2,25 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Shield, Zap, ArrowRight, Github, Link as LinkIcon, Monitor, Smartphone } from 'lucide-react';
+import { MessageSquare, Shield, Zap, ArrowRight, Github, Link as LinkIcon, Monitor, Smartphone, LayoutDashboard } from 'lucide-react';
 import { useAuthStore } from '@/stores';
 
 export default function LandingPage() {
-  const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    if (isAuthenticated && user) {
-      router.replace('/dashboard');
-    }
-  }, [isAuthenticated, user, router]);
+  }, []);
 
-  // Prevent flash of content while checking auth
-  if (!mounted || isAuthenticated) {
+  // Prevent flash of content while hydrating
+  if (!mounted) {
     return null;
   }
 
@@ -40,16 +35,26 @@ export default function LandingPage() {
           
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Fitur</a>
+            <a href="#download" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Download</a>
             <a href="#about" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Tentang</a>
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth/login">
-              <Button>
-                Masuk
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button>
+                  <LayoutDashboard className="w-4 h-4 mr-2" />
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <Link href="/auth/login">
+                <Button>
+                  Masuk
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </header>
