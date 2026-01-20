@@ -98,8 +98,11 @@ export default function ChatRoomScreen() {
 
     try {
       const response = await fetchRoomMessages(roomId!, initial ? undefined : cursor || undefined);
+      
       if (response.success && response.data) {
-        const { messages: newMessages, nextCursor } = response.data;
+        // Backend returns: { success, data: Message[], pagination: {...} }
+        const newMessages = response.data;
+        const paginationInfo = (response as any).pagination;
 
         // Safety check: ensure newMessages is an array
         if (Array.isArray(newMessages)) {
@@ -108,6 +111,15 @@ export default function ChatRoomScreen() {
           } else {
             prependMessages(roomId!, newMessages.reverse());
           }
+          
+          // Use pagination.hasMore to determine if there are more messages
+          setHasMore(paginationInfo?.hasMore || false);
+          
+          // Set cursor to last message's createdAt for next page
+          if (newMessages.length > 0) {
+            const oldestMessage = newMessages[newMessages.length - 1];
+            setCursor(oldestMessage.createdAt);
+          }
         } else {
           console.warn('Messages is not an array:', newMessages);
           // Set empty array if messages is not valid
@@ -115,9 +127,6 @@ export default function ChatRoomScreen() {
             setMessages(roomId!, []);
           }
         }
-
-        setCursor(nextCursor);
-        setHasMore(!!nextCursor);
       }
     } catch (error) {
       console.error('Error loading messages:', error);
