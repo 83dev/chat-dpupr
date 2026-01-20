@@ -67,7 +67,8 @@ export async function notifyRoomMembers(
   senderNip: string,
   senderName: string,
   messageBody: string,
-  roomName: string
+  roomName: string,
+  roomType?: string // Added roomType optional parameter
 ): Promise<void> {
   try {
     // Get all room members except the sender
@@ -82,6 +83,16 @@ export async function notifyRoomMembers(
       },
     });
 
+    // If roomType is not provided, try to fetch it
+    let type = roomType;
+    if (!type) {
+      const room = await prisma.chatRoom.findUnique({
+        where: { id: roomId },
+        select: { type: true }
+      });
+      type = room?.type;
+    }
+
     // Filter members with push tokens and build messages
     const messages: PushMessage[] = [];
     
@@ -92,10 +103,27 @@ export async function notifyRoomMembers(
       }) as any;
       
       if (userWithToken?.pushToken) {
+        let title = roomName;
+        let body = messageBody;
+
+        // WhatsApp style formatting
+        if (type === 'PRIVATE') {
+          // Private chat: Title is sender name, Body is message
+          title = senderName;
+          body = messageBody;
+        } else {
+          // Group/Bidang chat: Title is room name, Body is "Sender: Message"
+          title = roomName;
+          body = `${senderName}: ${messageBody}`;
+        }
+
+        // Truncate body if too long
+        const truncatedBody = body.length > 200 ? body.substring(0, 200) + '...' : body;
+
         messages.push({
           to: userWithToken.pushToken,
-          title: `${senderName} - ${roomName}`,
-          body: messageBody.length > 100 ? messageBody.substring(0, 100) + '...' : messageBody,
+          title: title,
+          body: truncatedBody,
           data: {
             roomId,
             type: 'new_message',
