@@ -22,6 +22,30 @@ router.get('/login/sso', (_req: Request, res: Response) => {
   res.redirect(authUrl);
 });
 
+// SSO login for mobile (WebView)
+router.get('/sso', (req: Request, res: Response) => {
+  const { mobile } = req.query;
+  const state = Math.random().toString(36).substring(2, 15);
+  const authUrl = getAuthorizationUrl(state);
+  
+  // Store state and mobile flag in cookie
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 10 * 60 * 1000,
+  });
+  
+  if (mobile) {
+    res.cookie('mobile_login', 'true', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 10 * 60 * 1000,
+    });
+  }
+  
+  res.redirect(authUrl);
+});
+
 // SSO callback handler
 router.get('/callback', async (req: Request, res: Response<ApiResponse<{ token: string; user: JWTPayload }>>) => {
   try {
@@ -184,9 +208,18 @@ router.get('/callback', async (req: Request, res: Response<ApiResponse<{ token: 
     // Clear OAuth state cookie
     res.clearCookie('oauth_state');
     
-    // For SPA: redirect to frontend with token
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    // Check if this is a mobile login
+    const isMobileLogin = req.cookies?.mobile_login === 'true';
+    res.clearCookie('mobile_login');
+    
+    if (isMobileLogin) {
+      // For mobile: redirect to custom scheme with token
+      res.redirect(`chatdpupr://auth/callback?token=${token}`);
+    } else {
+      // For SPA: redirect to frontend with token
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    }
     
   } catch (error) {
     console.error('SSO callback error:', error);

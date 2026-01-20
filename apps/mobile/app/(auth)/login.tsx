@@ -28,8 +28,8 @@ export default function LoginScreen() {
   const handleWebViewNavigationStateChange = async (navState: any) => {
     const { url } = navState;
 
-    // Check if redirected back with token
-    if (url.includes('/auth/mobile-callback') || url.includes('token=')) {
+    // Check if redirected back with token (custom scheme)
+    if (url.startsWith('chatdpupr://auth/callback')) {
       try {
         // Extract token from URL
         const urlObj = new URL(url);
@@ -81,6 +81,14 @@ export default function LoginScreen() {
               <ActivityIndicator size="large" color="#3b82f6" />
             </View>
           )}
+          onShouldStartLoadWithRequest={(request) => {
+            // Allow custom scheme redirects
+            if (request.url.startsWith('chatdpupr://')) {
+              handleWebViewNavigationStateChange({ url: request.url });
+              return false;
+            }
+            return true;
+          }}
         />
       </SafeAreaView>
     );
