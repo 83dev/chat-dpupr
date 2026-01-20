@@ -43,6 +43,7 @@ model User {
   avatar    String?   @db.VarChar(255)
   isActive  Boolean   @default(true) @map("is_active")
   lastSeen  DateTime? @map("last_seen")
+  pushToken String?   @map("push_token") @db.VarChar(255) // Expo Push Token for mobile notifications
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 

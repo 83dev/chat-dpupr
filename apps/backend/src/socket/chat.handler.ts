@@ -1,6 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import prisma from '../config/database.js';
 import { verifyToken } from '../middleware/auth.js';
+import { notifyRoomMembers } from '../services/push.js';
 import type {
   JWTPayload,
   ServerToClientEvents,
@@ -168,6 +169,20 @@ export function setupChatHandlers(io: SocketIOServer<ClientToServerEvents, Serve
         
         // Broadcast to room
         io.to(`room:${roomId}`).emit('message:new', messageWithSender);
+        
+        // Send push notifications to offline users
+        const room = await prisma.chatRoom.findUnique({
+          where: { id: roomId },
+          select: { nama: true },
+        });
+        
+        notifyRoomMembers(
+          roomId,
+          user.nip,
+          user.nama,
+          body.trim(),
+          room?.nama || 'Chat DPUPR'
+        ).catch(console.error);
         
         // Success callback
         callback({ success: true, message: messageWithSender });
