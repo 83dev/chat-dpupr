@@ -91,19 +91,41 @@ export default function RoomListScreen() {
           title: 'Chat DPUPR',
           headerLargeTitle: false,
           headerRight: () => (
-            <TouchableOpacity onPress={signOut} style={{ marginRight: 16 }}>
+            <TouchableOpacity onPress={handleLogout} style={{ marginRight: 16 }}>
               <LogOut size={24} color="#ef4444" />
             </TouchableOpacity>
           ),
         }}
       />
       <View style={styles.container}>
+        {rooms.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Belum ada chat</Text>
+            <Text style={styles.emptySubtext}>
+              Tarik ke bawah untuk refresh
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={rooms}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <RoomListItem
+                room={item}
+                isOnline={isInitialLoad ? undefined : isUserOnline(item)}
+                onPress={() => handleRoomPress(item.id)}
+              />
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
                 onRefresh={onRefresh}
                 colors={['#3b82f6']}
                 tintColor="#3b82f6"
               />
             }
-            contentContainerStyle={rooms.length === 0 && styles.emptyList}
+            contentContainerStyle={styles.listContent}
           />
         )}
       </View>
@@ -115,6 +137,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginLeft: 88, // Indent separator to align with text
   },
   logoutButton: {
     padding: 8,

@@ -28,7 +28,7 @@ export function ChatInput({
   isSending,
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
   const handleChangeText = (text: string) => {
