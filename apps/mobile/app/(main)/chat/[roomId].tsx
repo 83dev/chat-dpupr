@@ -93,6 +93,18 @@ export default function ChatRoomScreen() {
     }
   };
 
+  // Get display name for the room
+  const displayName = React.useMemo(() => {
+    if (!room) return 'Chat';
+    
+    if (room.type === 'PRIVATE' && room.members) {
+      // For private chat, show other user's name
+      const otherMember = room.members.find((m) => m.user.nip !== user?.nip);
+      return otherMember?.user.nama || room.nama;
+    }
+    return room.nama;
+  }, [room, user]);
+
   const loadMessages = async (initial = false) => {
     if (!initial && !hasMore) return;
     if (!initial && isLoading) return; // Prevent multiple simultaneous loads
@@ -204,7 +216,7 @@ export default function ChatRoomScreen() {
     <>
       <Stack.Screen
         options={{
-          title: room?.nama || 'Chat',
+          title: displayName,
           headerTitleStyle: { fontWeight: '600', fontSize: 16 },
         }}
       />

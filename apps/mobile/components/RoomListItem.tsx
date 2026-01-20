@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format, isToday, isYesterday } from 'date-fns';
 import { id } from 'date-fns/locale';
 import type { ChatRoom } from '../lib/types';
+import { useAuthStore } from '../stores';
 
 interface RoomListItemProps {
   room: ChatRoom;
@@ -11,6 +12,18 @@ interface RoomListItemProps {
 }
 
 export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
+  const { user } = useAuthStore();
+
+  // Get display name for the room
+  const displayName = useMemo(() => {
+    if (room.type === 'PRIVATE' && room.members) {
+      // For private chat, show other user's name
+      const otherMember = room.members.find((m) => m.user.nip !== user?.nip);
+      return otherMember?.user.nama || room.nama;
+    }
+    return room.nama;
+  }, [room, user]);
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     if (isToday(date)) {
@@ -40,8 +53,8 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.avatarContainer}>
-        <View style={[styles.avatar, room.jenis === 'BIDANG' && styles.avatarBidang]}>
-          <Text style={styles.avatarText}>{getInitials(room.nama)}</Text>
+        <View style={[styles.avatar, room.type === 'BIDANG' && styles.avatarBidang]}>
+          <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
         </View>
         {isOnline && <View style={styles.onlineIndicator} />}
       </View>
@@ -49,7 +62,7 @@ export function RoomListItem({ room, isOnline, onPress }: RoomListItemProps) {
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.name} numberOfLines={1}>
-            {room.nama}
+            {displayName}
           </Text>
           {room.lastMessage && (
             <Text style={styles.time}>{formatTime(room.lastMessage.createdAt)}</Text>
