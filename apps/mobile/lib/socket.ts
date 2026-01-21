@@ -54,7 +54,7 @@ export async function connectSocket(): Promise<TypedSocket | null> {
   console.log('🆕 Creating new socket connection...');
   socket = io(BACKEND_URL, {
     auth: { token },
-    transports: ['websocket', 'polling'],
+    transports: ['websocket'], // Force WebSocket for better stability on RN
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 10,
